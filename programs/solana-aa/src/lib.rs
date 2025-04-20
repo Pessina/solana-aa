@@ -1,15 +1,19 @@
 use anchor_lang::prelude::*;
 
 mod contract;
+mod types;
 
-use crate::contract::ethereum_auth::*;
+use crate::contract::accounts::*;
+use crate::contract::auth::ethereum::*;
+use crate::contract::auth::webauthn::*;
 use crate::contract::transaction_buffer::*;
-use crate::contract::webauthn_auth::*;
+use crate::types::identities::*;
 
 declare_id!("2PYNfKSoM7rFJeMuvEidASxgpdPAXYascVDmH6jpBa7o");
 
 #[program]
 pub mod solana_aa {
+
     use super::*;
 
     pub fn init_storage(
@@ -74,5 +78,17 @@ pub mod solana_aa {
         compressed_public_key: String,
     ) -> Result<bool> {
         verify_webauthn_signature_impl(&ctx, &webauthn_data, compressed_public_key)
+    }
+
+    pub fn create_account(
+        ctx: Context<CreateAccount>,
+        account_id: String,
+        identity: Identity,
+    ) -> Result<()> {
+        create_account_impl(ctx, account_id, identity)
+    }
+
+    pub fn get_account(ctx: Context<GetAccount>, account_id: String) -> Result<()> {
+        get_account_impl(&ctx, account_id)
     }
 }

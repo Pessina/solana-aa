@@ -63,6 +63,20 @@ export const logComputeUnitsUsed = async ({
   txSignature: string;
   compressedPublicKey: string;
 }) => {
+  const txInfo = await getTxInfo({ txSignature });
+
+  if (txInfo && txInfo.meta) {
+    console.log(
+      `Compute units used for ${compressedPublicKey}: ${txInfo.meta.computeUnitsConsumed}`
+    );
+  }
+};
+/**
+ * Logs the compute units used for a transaction
+ * @param txSignature Transaction signature
+ * @param compressedPublicKey Compressed public key
+ */
+export const getTxInfo = async ({ txSignature }: { txSignature: string }) => {
   if (txSignature) {
     const provider = anchor.getProvider() as anchor.AnchorProvider;
     const txInfo = await provider.connection.getTransaction(txSignature, {
@@ -70,10 +84,6 @@ export const logComputeUnitsUsed = async ({
       maxSupportedTransactionVersion: 0,
     });
 
-    if (txInfo && txInfo.meta) {
-      console.log(
-        `Compute units used for ${compressedPublicKey}: ${txInfo.meta.computeUnitsConsumed}`
-      );
-    }
+    return txInfo;
   }
 };
