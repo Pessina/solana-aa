@@ -30,14 +30,14 @@ pub fn delete_account_impl(ctx: Context<DeleteAccount>, account_id: String) -> R
 }
 
 #[derive(Accounts)]
-#[instruction(account_id: String, identity: Identity)]
+#[instruction(account_id: String, identity_with_permissions: IdentityWithPermissions)]
 pub struct CreateAccount<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
     #[account(
         init_if_needed,
         payer = signer,
-        space = get_account_initial_size(&identity),
+        space = get_account_initial_size(&identity_with_permissions),
         seeds = [b"account", account_id.as_bytes()],
         bump,
     )]
@@ -45,13 +45,13 @@ pub struct CreateAccount<'info> {
     pub system_program: Program<'info, System>,
 }
 
-fn get_account_initial_size(identity: &Identity) -> usize {
+fn get_account_initial_size(identity_with_permissions: &IdentityWithPermissions) -> usize {
     const PDA_DISCRIMINATOR_SIZE: usize = 8;
     const NONCE_SIZE: usize = 8;
     const VEC_SIZE: usize = 4;
 
     let mut size = PDA_DISCRIMINATOR_SIZE + NONCE_SIZE + VEC_SIZE;
-    size += identity.byte_size();
+    size += identity_with_permissions.byte_size();
 
     size
 }
@@ -59,17 +59,17 @@ fn get_account_initial_size(identity: &Identity) -> usize {
 pub fn create_account_impl(
     ctx: Context<CreateAccount>,
     _account_id: String,
-    identity: Identity,
+    identity_with_permissions: IdentityWithPermissions,
 ) -> Result<()> {
     // TODO: Create manager account that track the global nonce and initialize this with the global nonce
     ctx.accounts.abstract_account.nonce = 0;
-    ctx.accounts.abstract_account.identities = vec![identity];
+    ctx.accounts.abstract_account.identities = vec![identity_with_permissions];
 
     Ok(())
 }
 
 #[derive(Accounts)]
-#[instruction(account_id: String, identity: Identity)]
+#[instruction(account_id: String, identity_with_permissions: IdentityWithPermissions)]
 pub struct AddIdentity<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
@@ -77,7 +77,7 @@ pub struct AddIdentity<'info> {
         mut,
         seeds = [b"account", account_id.as_bytes()],
         bump,
-        realloc = abstract_account.to_account_info().data_len() + identity.byte_size(),
+        realloc = abstract_account.to_account_info().data_len() + identity_with_permissions.byte_size(),
         realloc::payer = signer,
         realloc::zero = false
     )]
@@ -88,9 +88,11 @@ pub struct AddIdentity<'info> {
 pub fn add_identity_impl(
     ctx: Context<AddIdentity>,
     _account_id: String,
-    identity: Identity,
+    identity_with_permissions: IdentityWithPermissions,
 ) -> Result<()> {
-    ctx.accounts.abstract_account.add_identity(identity);
+    ctx.accounts
+        .abstract_account
+        .add_identity(identity_with_permissions);
     Ok(())
 }
 
@@ -103,7 +105,8 @@ pub struct RemoveIdentity<'info> {
         mut,
         seeds = [b"account", account_id.as_bytes()],
         bump,
-        realloc = abstract_account.to_account_info().data_len() - identity.byte_size(),
+        // TODO: Throw proper error
+        realloc = abstract_account.to_account_info().data_len() - abstract_account.find_identity(&identity).expect("Identity not found").byte_size(),
         realloc::payer = signer,
         realloc::zero = false
     )]
@@ -127,7 +130,7 @@ pub struct AbstractAccount {
     // TODO: Do not allow duplicate identities
     // Considering ~10 identities per account, a Vec might be the best choice.
     // Vec avoid the overhead of Key-Value pair of BTreeMap and HashMap softening the usage of Heap and Stack.
-    pub identities: Vec<Identity>,
+    pub identities: Vec<IdentityWithPermissions>,
 }
 
 impl AbstractAccount {
@@ -136,24 +139,24 @@ impl AbstractAccount {
     }
 
     // TODO: Include memory usage check to avoid overflowing solana limits
-    pub fn add_identity(&mut self, identity: Identity) {
-        if !self.has_identity(&identity) {
-            self.identities.push(identity);
+    pub fn add_identity(&mut self, identity_with_permissions: IdentityWithPermissions) {
+        if !self.has_identity(&identity_with_permissions.identity) {
+            self.identities.push(identity_with_permissions);
         }
     }
 
     pub fn remove_identity(&mut self, identity: &Identity) -> bool {
         let initial_len = self.identities.len();
-        self.identities.retain(|i| i != identity);
+        self.identities.retain(|i| &i.identity != identity);
 
         initial_len > self.identities.len()
     }
 
     pub fn has_identity(&self, identity: &Identity) -> bool {
-        self.identities.iter().any(|i| i == identity)
+        self.identities.iter().any(|i| &i.identity == identity)
     }
 
-    pub fn find_identity(&self, identity: &Identity) -> Option<&Identity> {
-        self.identities.iter().find(|i| *i == identity)
+    pub fn find_identity(&self, identity: &Identity) -> Option<&IdentityWithPermissions> {
+        self.identities.iter().find(|i| &i.identity == identity)
     }
 }

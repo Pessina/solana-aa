@@ -3,28 +3,37 @@ import { Program } from "@coral-xyz/anchor";
 import { SolanaAa } from "../target/types/solana_aa";
 import { assert } from "chai";
 import { confirmTransaction, logComputeUnitsUsed } from "../utils/solana";
+import {
+  createEthereumIdentity,
+  createWebAuthnIdentity,
+  findAccountPDA,
+  IdentityWithPermissions,
+} from "../utils/account";
+
 const ACCOUNT_ID = "my_account_id_1";
 
-const ETHEREUM_IDENTITY = {
-  wallet: {
-    "0": {
-      walletType: {
-        ethereum: {},
-      },
-      compressedPublicKey:
-        "0x031a08c5e977ab0a71d1ac3e5b8c435a431afb4c6d641b00a8b91496c5b085e6aa",
-    },
-  },
+// Constants for comparison
+const ETH_PUBLIC_KEY =
+  "0x031a08c5e977ab0a71d1ac3e5b8c435a431afb4c6d641b00a8b91496c5b085e6aa";
+const WEBAUTHN_KEY_ID = "0x123456789abcdef";
+const WEBAUTHN_PUBLIC_KEY =
+  "0x031a08c5e977ab0a71d1ac3e5b8c435a431afb4c6d641b00a8b91496c5b085e6ab";
+const ETH_PUBLIC_KEY_2 =
+  "0x031a08c5e977ab0a71d1ac3e5b8c435a431afb4c6d641b00a8b91496c5b085e6ac";
+const WEBAUTHN_KEY_ID_2 = "0xabcdef123456789";
+const WEBAUTHN_PUBLIC_KEY_2 =
+  "0x031a08c5e977ab0a71d1ac3e5b8c435a431afb4c6d641b00a8b91496c5b085e6ad";
+const ETH_PUBLIC_KEY_3 =
+  "0x031a08c5e977ab0a71d1ac3e5b8c435a431afb4c6d641b00a8b91496c5b085e6ae";
+
+const ETHEREUM_IDENTITY_WITH_PERMISSIONS: IdentityWithPermissions = {
+  identity: createEthereumIdentity(ETH_PUBLIC_KEY),
+  permissions: null,
 };
 
-const WEB_AUTHN_IDENTITY = {
-  webAuthn: {
-    "0": {
-      keyId: "0x123456789abcdef",
-      compressedPublicKey:
-        "0x031a08c5e977ab0a71d1ac3e5b8c435a431afb4c6d641b00a8b91496c5b085e6ab",
-    },
-  },
+const WEB_AUTHN_IDENTITY_WITH_PERMISSIONS: IdentityWithPermissions = {
+  identity: createWebAuthnIdentity(WEBAUTHN_KEY_ID, WEBAUTHN_PUBLIC_KEY),
+  permissions: null,
 };
 
 describe("Accounts", () => {
@@ -35,10 +44,7 @@ describe("Accounts", () => {
 
   beforeEach(async () => {
     try {
-      const [accountPDA] = anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from("account"), Buffer.from(ACCOUNT_ID)],
-        program.programId
-      );
+      const [accountPDA] = findAccountPDA(ACCOUNT_ID, program.programId);
 
       const accountInfo = await connection.getAccountInfo(accountPDA);
 
@@ -62,15 +68,12 @@ describe("Accounts", () => {
 
   it("Can create an account with Ethereum identity", async () => {
     const signature = await program.methods
-      .createAccount(ACCOUNT_ID, ETHEREUM_IDENTITY)
+      .createAccount(ACCOUNT_ID, ETHEREUM_IDENTITY_WITH_PERMISSIONS)
       .rpc();
 
     await confirmTransaction(connection, signature);
 
-    const [accountPDA] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("account"), Buffer.from(ACCOUNT_ID)],
-      program.programId
-    );
+    const [accountPDA] = findAccountPDA(ACCOUNT_ID, program.programId);
 
     const accountInfo = await program.account.abstractAccount.fetch(accountPDA);
 
@@ -81,32 +84,32 @@ describe("Accounts", () => {
       "Should have 1 identity"
     );
 
-    const identity = accountInfo.identities[0];
-    assert.isDefined(identity.wallet, "Identity should be a wallet type");
+    const identityWithPermissions = accountInfo.identities[0];
+    assert.isDefined(
+      identityWithPermissions.identity.wallet,
+      "Identity should be a wallet type"
+    );
 
-    const wallet = identity.wallet["0"];
+    const wallet = identityWithPermissions.identity.wallet["0"];
     assert.isDefined(
       wallet.walletType.ethereum,
       "Wallet type should be ethereum"
     );
     assert.strictEqual(
       wallet.compressedPublicKey,
-      ETHEREUM_IDENTITY.wallet["0"].compressedPublicKey,
+      ETH_PUBLIC_KEY,
       "Public key should match"
     );
   });
 
   it("can create an account with WebAuthn identity", async () => {
     const signature = await program.methods
-      .createAccount(ACCOUNT_ID, WEB_AUTHN_IDENTITY)
+      .createAccount(ACCOUNT_ID, WEB_AUTHN_IDENTITY_WITH_PERMISSIONS)
       .rpc();
 
     await confirmTransaction(connection, signature);
 
-    const [accountPDA] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("account"), Buffer.from(ACCOUNT_ID)],
-      program.programId
-    );
+    const [accountPDA] = findAccountPDA(ACCOUNT_ID, program.programId);
 
     const accountInfo = await program.account.abstractAccount.fetch(accountPDA);
 
@@ -117,39 +120,39 @@ describe("Accounts", () => {
       "Should have 1 identity"
     );
 
-    const identity = accountInfo.identities[0];
-    assert.isDefined(identity.webAuthn, "Identity should be a WebAuthn type");
+    const identityWithPermissions = accountInfo.identities[0];
+    assert.isDefined(
+      identityWithPermissions.identity.webAuthn,
+      "Identity should be a WebAuthn type"
+    );
 
-    const webAuthn = identity.webAuthn["0"];
+    const webAuthn = identityWithPermissions.identity.webAuthn["0"];
     assert.strictEqual(
       webAuthn.keyId,
-      WEB_AUTHN_IDENTITY.webAuthn["0"].keyId,
+      WEBAUTHN_KEY_ID,
       "Credential ID should match"
     );
     assert.strictEqual(
       webAuthn.compressedPublicKey,
-      WEB_AUTHN_IDENTITY.webAuthn["0"].compressedPublicKey,
+      WEBAUTHN_PUBLIC_KEY,
       "Public key should match"
     );
   });
 
   it("can add an identity to an existing account", async () => {
     const createSignature = await program.methods
-      .createAccount(ACCOUNT_ID, ETHEREUM_IDENTITY)
+      .createAccount(ACCOUNT_ID, ETHEREUM_IDENTITY_WITH_PERMISSIONS)
       .rpc();
 
     await confirmTransaction(connection, createSignature);
 
     const addSignature = await program.methods
-      .addIdentity(ACCOUNT_ID, WEB_AUTHN_IDENTITY)
+      .addIdentity(ACCOUNT_ID, WEB_AUTHN_IDENTITY_WITH_PERMISSIONS)
       .rpc();
 
     await confirmTransaction(connection, addSignature);
 
-    const [accountPDA] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("account"), Buffer.from(ACCOUNT_ID)],
-      program.programId
-    );
+    const [accountPDA] = findAccountPDA(ACCOUNT_ID, program.programId);
 
     const accountInfo = await program.account.abstractAccount.fetch(accountPDA);
 
@@ -159,41 +162,48 @@ describe("Accounts", () => {
       "Should have 2 identities"
     );
 
-    const webAuthnIdentity = accountInfo.identities.find((id) => id.webAuthn);
+    const webAuthnIdentityWithPermissions = accountInfo.identities.find(
+      (id) => id.identity.webAuthn
+    );
 
-    assert.isDefined(webAuthnIdentity, "WebAuthn identity should exist");
+    assert.isDefined(
+      webAuthnIdentityWithPermissions,
+      "WebAuthn identity should exist"
+    );
     assert.strictEqual(
-      webAuthnIdentity?.webAuthn?.[0].keyId,
-      WEB_AUTHN_IDENTITY.webAuthn[0].keyId,
+      webAuthnIdentityWithPermissions?.identity.webAuthn?.[0].keyId,
+      WEBAUTHN_KEY_ID,
       "WebAuthn credential ID should match"
     );
 
-    const ethereumIdentity = accountInfo.identities.find((id) => id.wallet);
-    assert.isDefined(ethereumIdentity, "Ethereum identity should exist");
+    const ethereumIdentityWithPermissions = accountInfo.identities.find(
+      (id) => id.identity.wallet
+    );
+    assert.isDefined(
+      ethereumIdentityWithPermissions,
+      "Ethereum identity should exist"
+    );
     assert.strictEqual(
-      ethereumIdentity?.wallet?.[0].compressedPublicKey,
-      ETHEREUM_IDENTITY.wallet["0"].compressedPublicKey,
+      ethereumIdentityWithPermissions?.identity.wallet?.[0].compressedPublicKey,
+      ETH_PUBLIC_KEY,
       "Ethereum public key should match"
     );
   });
 
   it("can remove an identity from an account", async () => {
     const createSignature = await program.methods
-      .createAccount(ACCOUNT_ID, WEB_AUTHN_IDENTITY)
+      .createAccount(ACCOUNT_ID, WEB_AUTHN_IDENTITY_WITH_PERMISSIONS)
       .rpc();
 
     await confirmTransaction(connection, createSignature);
 
     const addSignature = await program.methods
-      .addIdentity(ACCOUNT_ID, ETHEREUM_IDENTITY)
+      .addIdentity(ACCOUNT_ID, ETHEREUM_IDENTITY_WITH_PERMISSIONS)
       .rpc();
 
     await confirmTransaction(connection, addSignature);
 
-    const [accountPDA] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("account"), Buffer.from(ACCOUNT_ID)],
-      program.programId
-    );
+    const [accountPDA] = findAccountPDA(ACCOUNT_ID, program.programId);
 
     let accountInfo = await program.account.abstractAccount.fetch(accountPDA);
     assert.strictEqual(
@@ -203,7 +213,7 @@ describe("Accounts", () => {
     );
 
     const removeSignature = await program.methods
-      .removeIdentity(ACCOUNT_ID, ETHEREUM_IDENTITY)
+      .removeIdentity(ACCOUNT_ID, ETHEREUM_IDENTITY_WITH_PERMISSIONS.identity)
       .rpc();
 
     await confirmTransaction(connection, removeSignature);
@@ -215,83 +225,64 @@ describe("Accounts", () => {
       "Should have 1 identity after removal"
     );
 
-    const remainingIdentity = accountInfo.identities[0];
+    const remainingIdentityWithPermissions = accountInfo.identities[0];
     assert.isDefined(
-      remainingIdentity.webAuthn,
+      remainingIdentityWithPermissions.identity.webAuthn,
       "Remaining identity should be WebAuthn type"
     );
     assert.strictEqual(
-      remainingIdentity.webAuthn[0].keyId,
-      WEB_AUTHN_IDENTITY.webAuthn[0].keyId,
+      remainingIdentityWithPermissions.identity.webAuthn[0].keyId,
+      WEBAUTHN_KEY_ID,
       "WebAuthn credential ID should match"
     );
   });
 
   it("Can handle multiple identities (stress test)", async () => {
-    const identities = [
-      ETHEREUM_IDENTITY,
-      WEB_AUTHN_IDENTITY,
+    const identityWithPermissions: IdentityWithPermissions[] = [
+      ETHEREUM_IDENTITY_WITH_PERMISSIONS,
+      WEB_AUTHN_IDENTITY_WITH_PERMISSIONS,
       {
-        wallet: {
-          "0": {
-            walletType: {
-              ethereum: {},
-            },
-            compressedPublicKey:
-              "0x031a08c5e977ab0a71d1ac3e5b8c435a431afb4c6d641b00a8b91496c5b085e6ac",
-          },
-        },
+        identity: createEthereumIdentity(ETH_PUBLIC_KEY_2),
+        permissions: null,
       },
       {
-        webAuthn: {
-          "0": {
-            keyId: "0xabcdef123456789",
-            compressedPublicKey:
-              "0x031a08c5e977ab0a71d1ac3e5b8c435a431afb4c6d641b00a8b91496c5b085e6ad",
-          },
-        },
+        identity: createWebAuthnIdentity(
+          WEBAUTHN_KEY_ID_2,
+          WEBAUTHN_PUBLIC_KEY_2
+        ),
+        permissions: null,
       },
       {
-        wallet: {
-          "0": {
-            walletType: {
-              ethereum: {},
-            },
-            compressedPublicKey:
-              "0x031a08c5e977ab0a71d1ac3e5b8c435a431afb4c6d641b00a8b91496c5b085e6ae",
-          },
-        },
+        identity: createEthereumIdentity(ETH_PUBLIC_KEY_3),
+        permissions: null,
       },
     ];
 
     const createSignature = await program.methods
-      .createAccount(ACCOUNT_ID, identities[0])
+      .createAccount(ACCOUNT_ID, identityWithPermissions[0])
       .rpc();
 
     await confirmTransaction(connection, createSignature);
 
-    await logComputeUnitsUsed({
-      txSignature: createSignature,
-      memo: "Create account with first identity",
-    });
+    // await logComputeUnitsUsed({
+    //   txSignature: createSignature,
+    //   memo: "Create account with first identity",
+    // });
 
-    for (let i = 1; i < identities.length; i++) {
+    for (let i = 1; i < identityWithPermissions.length; i++) {
       const addSignature = await program.methods
-        .addIdentity(ACCOUNT_ID, identities[i])
+        .addIdentity(ACCOUNT_ID, identityWithPermissions[i])
         .rpc();
 
       await confirmTransaction(connection, addSignature);
 
-      await logComputeUnitsUsed({
-        txSignature: addSignature,
-        memo: `Add identity ${i + 1}`,
-      });
+      // await logComputeUnitsUsed({
+      //   txSignature: addSignature,
+      //   memo: `Add identity ${i + 1}`,
+      // });
     }
 
-    const [accountPDA] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("account"), Buffer.from(ACCOUNT_ID)],
-      program.programId
-    );
+    const [accountPDA] = findAccountPDA(ACCOUNT_ID, program.programId);
 
     let accountInfo = await program.account.abstractAccount.fetch(accountPDA);
     assert.strictEqual(
@@ -300,30 +291,30 @@ describe("Accounts", () => {
       "Should have 5 identities after adding all"
     );
 
-    const accountData = await connection.getAccountInfo(accountPDA);
+    // const accountData = await connection.getAccountInfo(accountPDA);x
 
-    if (accountData) {
-      console.log(`Account size: ${accountData.data.length} bytes`);
-      console.log(
-        `Account rent exemption: ${await connection.getMinimumBalanceForRentExemption(
-          accountData.data.length
-        )} lamports`
-      );
-    } else {
-      console.log("Account not found");
-    }
+    // if (accountData) {
+    //   console.log(`Account size: ${accountData.data.length} bytes`);
+    //   console.log(
+    //     `Account rent exemption: ${await connection.getMinimumBalanceForRentExemption(
+    //       accountData.data.length
+    //     )} lamports`
+    //   );
+    // } else {
+    //   console.log("Account not found");
+    // }
 
-    for (let i = 0; i < identities.length; i++) {
+    for (let i = 0; i < identityWithPermissions.length; i++) {
       const removeSignature = await program.methods
-        .removeIdentity(ACCOUNT_ID, identities[i])
+        .removeIdentity(ACCOUNT_ID, identityWithPermissions[i].identity)
         .rpc();
 
       await confirmTransaction(connection, removeSignature);
 
-      await logComputeUnitsUsed({
-        txSignature: removeSignature,
-        memo: `Remove identity ${i + 1}`,
-      });
+      // await logComputeUnitsUsed({
+      //   txSignature: removeSignature,
+      //   memo: `Remove identity ${i + 1}`,
+      // });
 
       accountInfo = await program.account.abstractAccount.fetch(accountPDA);
       assert.strictEqual(

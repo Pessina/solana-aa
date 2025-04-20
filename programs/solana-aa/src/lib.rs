@@ -83,9 +83,9 @@ pub mod solana_aa {
     pub fn create_account(
         ctx: Context<CreateAccount>,
         account_id: String,
-        identity: Identity,
+        identity_with_permissions: IdentityWithPermissions,
     ) -> Result<()> {
-        create_account_impl(ctx, account_id, identity)
+        create_account_impl(ctx, account_id, identity_with_permissions)
     }
 
     pub fn delete_account(ctx: Context<DeleteAccount>, account_id: String) -> Result<()> {
@@ -95,9 +95,9 @@ pub mod solana_aa {
     pub fn add_identity(
         ctx: Context<AddIdentity>,
         account_id: String,
-        identity: Identity,
+        identity_with_permissions: IdentityWithPermissions,
     ) -> Result<()> {
-        add_identity_impl(ctx, account_id, identity)
+        add_identity_impl(ctx, account_id, identity_with_permissions)
     }
 
     pub fn remove_identity(
