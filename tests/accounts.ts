@@ -2,7 +2,7 @@ import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { SolanaAa } from "../target/types/solana_aa";
 import { assert } from "chai";
-import { confirmTransaction, getTxInfo } from "../utils/solana";
+import { confirmTransaction, logComputeUnitsUsed } from "../utils/solana";
 const ACCOUNT_ID = "my_account_id_1";
 
 const ETHEREUM_IDENTITY = {
@@ -25,7 +25,7 @@ const WEB_AUTHN_IDENTITY = {
   },
 };
 
-describe.only("Accounts", () => {
+describe("Accounts", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const connection = anchor.getProvider().connection;
   const program = anchor.workspace.solanaAa as Program<SolanaAa>;
@@ -223,5 +223,96 @@ describe.only("Accounts", () => {
       WEB_AUTHN_IDENTITY.webAuthn[0].keyId,
       "WebAuthn credential ID should match"
     );
+  });
+
+  it("Can handle multiple identities (stress test)", async () => {
+    const identities = [
+      ETHEREUM_IDENTITY,
+      WEB_AUTHN_IDENTITY,
+      {
+        wallet: {
+          "0": {
+            walletType: {
+              ethereum: {},
+            },
+            compressedPublicKey: "0xabcdef123456789",
+          },
+        },
+      },
+      {
+        webAuthn: {
+          "0": {
+            keyId: "0xabcdef123456789",
+            compressedPublicKey: "0xabcdef123456789",
+          },
+        },
+      },
+      {
+        wallet: {
+          "0": {
+            walletType: {
+              ethereum: {},
+            },
+            compressedPublicKey: "0x987654321fedcba",
+          },
+        },
+      },
+    ];
+
+    const createSignature = await program.methods
+      .createAccount(ACCOUNT_ID, identities[0])
+      .rpc();
+
+    await confirmTransaction(connection, createSignature);
+
+    await logComputeUnitsUsed({
+      txSignature: createSignature,
+      memo: "Create account with first identity",
+    });
+
+    for (let i = 1; i < identities.length; i++) {
+      const addSignature = await program.methods
+        .addIdentity(ACCOUNT_ID, identities[i])
+        .rpc();
+
+      await confirmTransaction(connection, addSignature);
+
+      await logComputeUnitsUsed({
+        txSignature: addSignature,
+        memo: `Add identity ${i + 1}`,
+      });
+    }
+
+    const [accountPDA] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("account"), Buffer.from(ACCOUNT_ID)],
+      program.programId
+    );
+
+    let accountInfo = await program.account.abstractAccount.fetch(accountPDA);
+    assert.strictEqual(
+      accountInfo.identities.length,
+      5,
+      "Should have 5 identities after adding all"
+    );
+
+    for (let i = 0; i < identities.length; i++) {
+      const removeSignature = await program.methods
+        .removeIdentity(ACCOUNT_ID, identities[i])
+        .rpc();
+
+      await confirmTransaction(connection, removeSignature);
+
+      await logComputeUnitsUsed({
+        txSignature: removeSignature,
+        memo: `Remove identity ${i + 1}`,
+      });
+
+      accountInfo = await program.account.abstractAccount.fetch(accountPDA);
+      assert.strictEqual(
+        accountInfo.identities.length,
+        4 - i,
+        `Should have ${4 - i} identities after removing ${i + 1}`
+      );
+    }
   });
 });

@@ -157,8 +157,7 @@ async function verifyWebauthnSignature({
   const { addVerificationInstruction = true, additionalInstructions = [] } =
     options;
 
-  const program = anchor.workspace
-    .solanaAa as Program<SolanaAa>;
+  const program = anchor.workspace.solanaAa as Program<SolanaAa>;
   const provider = anchor.getProvider() as anchor.AnchorProvider;
 
   try {
@@ -335,7 +334,6 @@ describe("WebAuthn Authentication", () => {
 
             // logComputeUnitsUsed({
             //   txSignature: result.txSignature,
-            //   compressedPublicKey,
             // });
 
             assert.strictEqual(

@@ -137,8 +137,7 @@ async function verifyEthSignature({
     options;
 
   const provider = anchor.getProvider() as anchor.AnchorProvider;
-  const program = anchor.workspace
-    .solanaAa as Program<SolanaAa>;
+  const program = anchor.workspace.solanaAa as Program<SolanaAa>;
 
   try {
     const {
@@ -317,7 +316,6 @@ describe("Ethereum Signature Verification", () => {
 
             // logComputeUnitsUsed({
             //   txSignature: result.txSignature,
-            //   compressedPublicKey: ethAddress,
             // });
 
             assert.strictEqual(

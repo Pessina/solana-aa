@@ -58,16 +58,16 @@ export async function confirmTransaction(
  */
 export const logComputeUnitsUsed = async ({
   txSignature,
-  compressedPublicKey,
+  memo = "",
 }: {
   txSignature: string;
-  compressedPublicKey: string;
+  memo?: string;
 }) => {
   const txInfo = await getTxInfo({ txSignature });
 
   if (txInfo && txInfo.meta) {
     console.log(
-      `Compute units used for ${compressedPublicKey}: ${txInfo.meta.computeUnitsConsumed}`
+      `Compute units used for "${memo}": ${txInfo.meta.computeUnitsConsumed}`
     );
   }
 };

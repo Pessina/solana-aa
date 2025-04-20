@@ -37,7 +37,7 @@ pub struct CreateAccount<'info> {
     #[account(
         init_if_needed,
         payer = signer,
-        space = estimate_account_size(&identity),
+        space = get_account_initial_size(&identity),
         seeds = [b"account", account_id.as_bytes()],
         bump,
     )]
@@ -45,7 +45,7 @@ pub struct CreateAccount<'info> {
     pub system_program: Program<'info, System>,
 }
 
-fn estimate_account_size(identity: &Identity) -> usize {
+fn get_account_initial_size(identity: &Identity) -> usize {
     const PDA_DISCRIMINATOR_SIZE: usize = 8;
     const NONCE_SIZE: usize = 8;
     const VEC_SIZE: usize = 4;
