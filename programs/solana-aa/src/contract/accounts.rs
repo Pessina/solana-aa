@@ -6,7 +6,8 @@ pub fn create_account_impl(
     _account_id: String,
     identity: Identity,
 ) -> Result<()> {
-    ctx.accounts.abstract_account.nonce = 0; // TODO: Create manager account that track the global nonce and initialize this with the global nonce
+    // TODO: Create manager account that track the global nonce and initialize this with the global nonce
+    ctx.accounts.abstract_account.nonce = 0;
     ctx.accounts.abstract_account.identities = vec![identity];
 
     Ok(())
@@ -63,5 +64,9 @@ pub struct GetAccount<'info> {
 #[account]
 pub struct AbstractAccount {
     pub nonce: u64,
+    // TODO: Benchmark other data structures; BtreeMap, HashMap, etc.
+    // TODO: Do not allow duplicate identities
+    // Considering ~10 identities per account, a Vec might be the best choice.
+    // Vec avoid the overhead of Key-Value pair of BTreeMap and HashMap softening the usage of Heap and Stack.
     pub identities: Vec<Identity>,
 }
