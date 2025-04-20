@@ -11,7 +11,8 @@ const ETHEREUM_IDENTITY = {
       walletType: {
         ethereum: {},
       },
-      compressedPublicKey: "0x123456789abcdef",
+      compressedPublicKey:
+        "0x031a08c5e977ab0a71d1ac3e5b8c435a431afb4c6d641b00a8b91496c5b085e6aa",
     },
   },
 };
@@ -20,7 +21,8 @@ const WEB_AUTHN_IDENTITY = {
   webAuthn: {
     "0": {
       keyId: "0x123456789abcdef",
-      compressedPublicKey: "0x123456789abcdef",
+      compressedPublicKey:
+        "0x031a08c5e977ab0a71d1ac3e5b8c435a431afb4c6d641b00a8b91496c5b085e6ab",
     },
   },
 };
@@ -235,7 +237,8 @@ describe("Accounts", () => {
             walletType: {
               ethereum: {},
             },
-            compressedPublicKey: "0xabcdef123456789",
+            compressedPublicKey:
+              "0x031a08c5e977ab0a71d1ac3e5b8c435a431afb4c6d641b00a8b91496c5b085e6ac",
           },
         },
       },
@@ -243,7 +246,8 @@ describe("Accounts", () => {
         webAuthn: {
           "0": {
             keyId: "0xabcdef123456789",
-            compressedPublicKey: "0xabcdef123456789",
+            compressedPublicKey:
+              "0x031a08c5e977ab0a71d1ac3e5b8c435a431afb4c6d641b00a8b91496c5b085e6ad",
           },
         },
       },
@@ -253,7 +257,8 @@ describe("Accounts", () => {
             walletType: {
               ethereum: {},
             },
-            compressedPublicKey: "0x987654321fedcba",
+            compressedPublicKey:
+              "0x031a08c5e977ab0a71d1ac3e5b8c435a431afb4c6d641b00a8b91496c5b085e6ae",
           },
         },
       },
@@ -294,6 +299,19 @@ describe("Accounts", () => {
       5,
       "Should have 5 identities after adding all"
     );
+
+    const accountData = await connection.getAccountInfo(accountPDA);
+
+    if (accountData) {
+      console.log(`Account size: ${accountData.data.length} bytes`);
+      console.log(
+        `Account rent exemption: ${await connection.getMinimumBalanceForRentExemption(
+          accountData.data.length
+        )} lamports`
+      );
+    } else {
+      console.log("Account not found");
+    }
 
     for (let i = 0; i < identities.length; i++) {
       const removeSignature = await program.methods
