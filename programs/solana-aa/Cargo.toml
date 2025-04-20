@@ -18,5 +18,14 @@ idl-build = ["anchor-lang/idl-build"]
 
 
 [dependencies]
-anchor-lang = "0.31.0"
+anchor-lang = { version = "0.31.1", features = ["init-if-needed"] }
+hex = "0.4.3"
+sha3 = "0.10.8"
+schemars = "0.8.22"
+sha2 = "0.10.8"
+bytemuck = { version = "1.22.0", features = ["derive"] }
+
+# Test crates
+# solana-precompile-error = "2.2.1"
+
 

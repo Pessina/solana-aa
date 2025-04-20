@@ -5,7 +5,11 @@
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "^0.31.0"
+    "@coral-xyz/anchor": "^0.31.0",
+    "@noble/curves": "^1.8.2",
+    "borsh": "^2.0.0",
+    "crypto": "^1.0.1",
+    "viem": "^2.26.3"
   },
   "devDependencies": {
     "chai": "^4.3.4",
