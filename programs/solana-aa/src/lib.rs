@@ -88,7 +88,23 @@ pub mod solana_aa {
         create_account_impl(ctx, account_id, identity)
     }
 
-    pub fn get_account(ctx: Context<GetAccount>, account_id: String) -> Result<()> {
-        get_account_impl(&ctx, account_id)
+    pub fn delete_account(ctx: Context<DeleteAccount>, account_id: String) -> Result<()> {
+        delete_account_impl(ctx, account_id)
+    }
+
+    pub fn add_identity(
+        ctx: Context<AddIdentity>,
+        account_id: String,
+        identity: Identity,
+    ) -> Result<()> {
+        add_identity_impl(ctx, account_id, identity)
+    }
+
+    pub fn remove_identity(
+        ctx: Context<RemoveIdentity>,
+        account_id: String,
+        identity: Identity,
+    ) -> Result<()> {
+        remove_identity_impl(ctx, account_id, identity)
     }
 }

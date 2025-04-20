@@ -28,8 +28,7 @@ class TestData {
 describe("Transaction Buffer", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
 
-  const program = anchor.workspace
-    .solanaAa as Program<SolanaAa>;
+  const program = anchor.workspace.solanaAa as Program<SolanaAa>;
   const provider = anchor.getProvider() as anchor.AnchorProvider;
 
   /**
