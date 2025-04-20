@@ -13,7 +13,12 @@ describe.only("Accounts", () => {
   it("Is initialized!", async () => {
     const signature = await program.methods
       .createAccount("my_account_id_1", {
-        webAuthn: undefined,
+        // webAuthn: {
+        //   0: {
+        //     keyId: "0x123456789abcdef",
+        //     compressedPublicKey: "0x123456789abcdef",
+        //   },
+        // },
         wallet: {
           0: {
             walletType: {

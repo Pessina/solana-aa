@@ -37,12 +37,11 @@ pub struct CreateAccount<'info> {
 }
 
 fn estimate_account_size(identity: &Identity) -> usize {
-    const VEC_SIZE: usize = 4;
-    const IDENTITY_SIZE: usize = 4;
-    const NONCE_SIZE: usize = 8;
     const PDA_DISCRIMINATOR_SIZE: usize = 8;
+    const NONCE_SIZE: usize = 8;
+    const VEC_SIZE: usize = 4;
 
-    let mut size = PDA_DISCRIMINATOR_SIZE + NONCE_SIZE + VEC_SIZE + IDENTITY_SIZE;
+    let mut size = PDA_DISCRIMINATOR_SIZE + NONCE_SIZE + VEC_SIZE;
     size += identity
         .try_to_vec()
         .expect("Failed to serialize identity")
