@@ -127,7 +127,6 @@ pub fn remove_identity_impl(
 pub struct AbstractAccount {
     pub nonce: u64,
     // TODO: Benchmark other data structures; BtreeMap, HashMap, etc.
-    // TODO: Do not allow duplicate identities
     // Considering ~10 identities per account, a Vec might be the best choice.
     // Vec avoid the overhead of Key-Value pair of BTreeMap and HashMap softening the usage of Heap and Stack.
     pub identities: Vec<IdentityWithPermissions>,

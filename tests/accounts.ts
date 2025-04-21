@@ -4,6 +4,7 @@ import { SolanaAa } from "../target/types/solana_aa";
 import { assert } from "chai";
 import { confirmTransaction, logComputeUnitsUsed } from "../utils/solana";
 import {
+  createDefaultPermissions,
   createEthereumIdentity,
   createWebAuthnIdentity,
   findAccountPDA,
@@ -18,11 +19,13 @@ const ETH_PUBLIC_KEY =
 const WEBAUTHN_KEY_ID = "0x123456789abcdef";
 const WEBAUTHN_PUBLIC_KEY =
   "0x031a08c5e977ab0a71d1ac3e5b8c435a431afb4c6d641b00a8b91496c5b085e6ab";
+
 const ETH_PUBLIC_KEY_2 =
   "0x031a08c5e977ab0a71d1ac3e5b8c435a431afb4c6d641b00a8b91496c5b085e6ac";
 const WEBAUTHN_KEY_ID_2 = "0xabcdef123456789";
 const WEBAUTHN_PUBLIC_KEY_2 =
   "0x031a08c5e977ab0a71d1ac3e5b8c435a431afb4c6d641b00a8b91496c5b085e6ad";
+
 const ETH_PUBLIC_KEY_3 =
   "0x031a08c5e977ab0a71d1ac3e5b8c435a431afb4c6d641b00a8b91496c5b085e6ae";
 
@@ -323,5 +326,45 @@ describe("Accounts", () => {
         `Should have ${4 - i} identities after removing ${i + 1}`
       );
     }
+  });
+
+  it("Can create an account with identity permissions", async () => {
+    const identityWithPermissions: IdentityWithPermissions = {
+      identity: createEthereumIdentity(ETH_PUBLIC_KEY_3),
+      permissions: createDefaultPermissions(),
+    };
+
+    const signature = await program.methods
+      .createAccount(ACCOUNT_ID, identityWithPermissions)
+      .rpc();
+
+    await confirmTransaction(connection, signature);
+
+    const [accountPDA] = findAccountPDA(ACCOUNT_ID, program.programId);
+    const accountInfo = await program.account.abstractAccount.fetch(accountPDA);
+
+    console.log(JSON.stringify(accountInfo, null, 2));
+
+    assert.strictEqual(accountInfo.nonce.toString(), "0", "Nonce should be 0");
+    assert.strictEqual(
+      accountInfo.identities.length,
+      1,
+      "Should have 1 identity"
+    );
+
+    const storedIdentity = accountInfo.identities[0];
+    assert.deepEqual(
+      storedIdentity.identity,
+      identityWithPermissions.identity,
+      "Identity should match what was provided"
+    );
+    assert.isNotNull(
+      storedIdentity.permissions,
+      "Permissions should not be null"
+    );
+    assert.isTrue(
+      storedIdentity.permissions.enableActAs,
+      "enableActAs should be true"
+    );
   });
 });
