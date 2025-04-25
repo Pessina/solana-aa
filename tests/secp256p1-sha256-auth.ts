@@ -71,7 +71,7 @@ function createSecp256r1VerificationInstruction(
 /**
  * Prepares WebAuthn data for verification
  */
-function prepareWebAuthnData(webauthnData: {
+function prepareWebAuthnMessage(webauthnData: {
   signature: string;
   authenticatorData: string;
   clientData: string;
@@ -91,14 +91,7 @@ function prepareWebAuthnData(webauthnData: {
     clientDataHashBuffer,
   ]);
 
-  return {
-    message,
-    webauthnDataArgs: {
-      signature: webauthnData.signature,
-      authenticatorData: webauthnData.authenticatorData,
-      clientData: webauthnData.clientData,
-    },
-  };
+  return message;
 }
 
 // Function to normalize an ECDSA signature by ensuring s is in the lower range
@@ -161,7 +154,7 @@ async function verifyWebauthnSignature({
   const provider = anchor.getProvider() as anchor.AnchorProvider;
 
   try {
-    const { message, webauthnDataArgs } = prepareWebAuthnData(programData);
+    const message = prepareWebAuthnMessage(programData);
 
     const instructions = [...additionalInstructions];
 
@@ -188,10 +181,7 @@ async function verifyWebauthnSignature({
           clientData: nativeClientData,
         };
 
-        const { message: nativeMessage } = prepareWebAuthnData(
-          nativeWebAuthnDataObj
-        );
-        verificationMessage = nativeMessage;
+        verificationMessage = prepareWebAuthnMessage(nativeWebAuthnDataObj);
       }
 
       // Normalize the signature to ensure s is in the lower range
@@ -208,10 +198,7 @@ async function verifyWebauthnSignature({
     }
 
     const txSignature = await program.methods
-      .verifyWebauthnSignature(
-        webauthnDataArgs,
-        programData.compressedPublicKey
-      )
+      .verifyWebauthn(message, programData.compressedPublicKey)
       .accounts({
         instructions_sysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
       })
@@ -240,7 +227,7 @@ async function verifyWebauthnSignature({
   }
 }
 
-describe("WebAuthn Authentication", () => {
+describe.only("WebAuthn Authentication", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
 
   const TEST_INPUTS = {

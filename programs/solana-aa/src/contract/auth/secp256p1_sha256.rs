@@ -8,19 +8,11 @@ use anchor_lang::solana_program::{
 };
 use bytemuck::{Pod, Zeroable};
 use hex;
-use sha2::{Digest, Sha256};
 
-#[derive(AnchorSerialize, AnchorDeserialize)]
-pub struct WebauthnValidationData {
-    pub signature: String,
-    pub authenticator_data: String,
-    pub client_data: String,
-}
-
-pub fn verify_webauthn_signature_impl(
+pub fn verify_secp256p1_sha256_impl(
     ctx: &Context<VerifyWebauthnSignature>,
-    webauthn_data: &WebauthnValidationData,
-    compressed_public_key: String,
+    signed_message: Vec<u8>,
+    signer_compressed_public_key: String,
 ) -> Result<bool> {
     let instructions_sysvar = &ctx.accounts.instructions;
 
@@ -80,7 +72,7 @@ pub fn verify_webauthn_signature_impl(
     let pubkey_bytes = &data[pubkey_start..pubkey_end];
 
     let mut expected_pubkey = [0u8; 33];
-    hex::decode_to_slice(&compressed_public_key[2..], &mut expected_pubkey)
+    hex::decode_to_slice(&signer_compressed_public_key[2..], &mut expected_pubkey)
         .map_err(|_| ErrorCode::InvalidHexEncoding)?;
     if pubkey_bytes != expected_pubkey.as_slice() {
         return Err(ErrorCode::PublicKeyMismatch.into());
@@ -94,18 +86,11 @@ pub fn verify_webauthn_signature_impl(
     }
     let message_bytes = &data[message_start..message_end];
 
-    // Compute expected data and compare in parts
-    let authenticator_data_bytes = hex::decode(&webauthn_data.authenticator_data[2..])
-        .map_err(|_| ErrorCode::InvalidHexEncoding)?;
-    let client_data_hash = Sha256::digest(webauthn_data.client_data.as_bytes());
+    if message_bytes.len() != signed_message.len() {
+        return Err(ErrorCode::SignedDataMismatch.into());
+    }
 
-    if message_bytes.len() != authenticator_data_bytes.len() + 32 {
-        return Err(ErrorCode::SignedDataMismatch.into());
-    }
-    if message_bytes[..authenticator_data_bytes.len()] != authenticator_data_bytes[..] {
-        return Err(ErrorCode::SignedDataMismatch.into());
-    }
-    if message_bytes[authenticator_data_bytes.len()..] != client_data_hash[..] {
+    if message_bytes != signed_message.as_slice() {
         return Err(ErrorCode::SignedDataMismatch.into());
     }
 

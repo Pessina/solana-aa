@@ -47,7 +47,7 @@ pub struct CreateAccount<'info> {
 
 fn get_account_initial_size(identity_with_permissions: &IdentityWithPermissions) -> usize {
     const PDA_DISCRIMINATOR_SIZE: usize = 8;
-    const NONCE_SIZE: usize = 8;
+    const NONCE_SIZE: usize = 16;
     const VEC_SIZE: usize = 4;
 
     let mut size = PDA_DISCRIMINATOR_SIZE + NONCE_SIZE + VEC_SIZE;
@@ -125,7 +125,7 @@ pub fn remove_identity_impl(
 
 #[account]
 pub struct AbstractAccount {
-    pub nonce: u64,
+    pub nonce: u128,
     // TODO: Benchmark other data structures; BtreeMap, HashMap, etc.
     // Considering ~10 identities per account, a Vec might be the best choice.
     // Vec avoid the overhead of Key-Value pair of BTreeMap and HashMap softening the usage of Heap and Stack.

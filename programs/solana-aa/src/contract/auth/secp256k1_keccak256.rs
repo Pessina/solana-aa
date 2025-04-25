@@ -4,16 +4,10 @@ use anchor_lang::solana_program::{
     sysvar::instructions::{load_current_index_checked, load_instruction_at_checked},
 };
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
-pub struct WalletValidationData {
-    pub signature: String,
-    pub message: String,
-}
-
-pub fn verify_ethereum_signature_impl(
+pub fn verify_secp256k1_keccak256_impl(
     ctx: &Context<VerifyEthereumSignature>,
-    eth_data: &WalletValidationData,
-    compressed_public_key: &str,
+    signed_message: Vec<u8>,
+    signer_eth_address: String,
 ) -> Result<bool> {
     let instructions_sysvar = &ctx.accounts.instructions;
     let current_index = load_current_index_checked(instructions_sysvar)? as usize;
@@ -67,7 +61,7 @@ pub fn verify_ethereum_signature_impl(
     let message = &data[message_start..message_end];
 
     let expected_eth_address =
-        hex::decode(&compressed_public_key[2..]).map_err(|_| ErrorCode::InvalidHexEncoding)?;
+        hex::decode(&signer_eth_address[2..]).map_err(|_| ErrorCode::InvalidHexEncoding)?;
     if expected_eth_address.len() != 20 {
         return Err(ErrorCode::InvalidAddressLength.into());
     }
@@ -75,7 +69,8 @@ pub fn verify_ethereum_signature_impl(
     if eth_address != expected_eth_address.as_slice() {
         return Err(ErrorCode::AddressMismatch.into());
     }
-    if message != eth_data.message.as_bytes() {
+
+    if message != signed_message.as_slice() {
         return Err(ErrorCode::MessageMismatch.into());
     }
 

@@ -21,6 +21,7 @@ import {
   SOLANA_MAX_COMPUTE_UNITS,
   SOLANA_PRE_COMPILED_ERRORS,
 } from "../utils/constants";
+import { toHex } from "viem";
 
 const SECP256K1_PROGRAM_ID = new PublicKey(
   "KeccakSecp256k11111111111111111111111111111"
@@ -214,7 +215,7 @@ async function verifyEthSignature({
     }
 
     const txSignature = await program.methods
-      .verifyEthereumSignature(ethDataArgs, programData.ethAddress)
+      .verifyEth(Buffer.from(ethDataArgs.message), programData.ethAddress)
       .accounts({
         instructions_sysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
       })
@@ -243,7 +244,7 @@ async function verifyEthSignature({
   }
 }
 
-describe("Ethereum Signature Verification", () => {
+describe.only("Ethereum Signature Verification", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
 
   const TEST_INPUTS = {

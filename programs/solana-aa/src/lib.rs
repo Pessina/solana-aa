@@ -1,11 +1,12 @@
 use anchor_lang::prelude::*;
 
 mod contract;
+// mod traits;
 mod types;
 
 use crate::contract::accounts::*;
-use crate::contract::auth::ethereum::*;
-use crate::contract::auth::webauthn::*;
+use crate::contract::auth::secp256k1_keccak256::*;
+use crate::contract::auth::secp256p1_sha256::*;
 use crate::contract::transaction_buffer::*;
 use crate::types::identities::*;
 
@@ -64,20 +65,20 @@ pub mod solana_aa {
         close_storage_impl(ctx)
     }
 
-    pub fn verify_ethereum_signature(
+    pub fn verifyEth(
         _ctx: Context<VerifyEthereumSignature>,
-        eth_data: WalletValidationData,
-        compressed_public_key: String,
+        signed_message: Vec<u8>,
+        signer_compressed_public_key: String,
     ) -> Result<bool> {
-        verify_ethereum_signature_impl(&_ctx, &eth_data, &compressed_public_key)
+        verify_secp256k1_keccak256_impl(&_ctx, signed_message, signer_compressed_public_key)
     }
 
-    pub fn verify_webauthn_signature(
+    pub fn verifyWebauthn(
         ctx: Context<VerifyWebauthnSignature>,
-        webauthn_data: WebauthnValidationData,
-        compressed_public_key: String,
+        signed_message: Vec<u8>,
+        signer_compressed_public_key: String,
     ) -> Result<bool> {
-        verify_webauthn_signature_impl(&ctx, &webauthn_data, compressed_public_key)
+        verify_secp256p1_sha256_impl(&ctx, signed_message, signer_compressed_public_key)
     }
 
     pub fn create_account(
