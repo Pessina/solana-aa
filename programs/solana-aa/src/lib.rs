@@ -65,7 +65,7 @@ pub mod solana_aa {
         close_storage_impl(ctx)
     }
 
-    pub fn verifyEth(
+    pub fn verify_eth(
         _ctx: Context<VerifyEthereumSignature>,
         signed_message: Vec<u8>,
         signer_compressed_public_key: String,
@@ -73,7 +73,7 @@ pub mod solana_aa {
         verify_secp256k1_keccak256_impl(&_ctx, signed_message, signer_compressed_public_key)
     }
 
-    pub fn verifyWebauthn(
+    pub fn verify_webauthn(
         ctx: Context<VerifyWebauthnSignature>,
         signed_message: Vec<u8>,
         signer_compressed_public_key: String,
