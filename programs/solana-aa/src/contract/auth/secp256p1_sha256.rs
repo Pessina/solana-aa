@@ -14,6 +14,29 @@ pub fn verify_secp256p1_sha256_impl(
     signed_message: Vec<u8>,
     signer_compressed_public_key: String,
 ) -> Result<bool> {
+    let (pubkey_bytes, message_bytes) = get_secp256p1_sha256_data_impl(&ctx)?;
+
+    let expected_pubkey = hex::decode(&signer_compressed_public_key[2..])
+        .map_err(|_| ErrorCode::InvalidHexEncoding)?;
+
+    if pubkey_bytes != expected_pubkey.as_slice() {
+        return Err(ErrorCode::PublicKeyMismatch.into());
+    }
+
+    if message_bytes.len() != signed_message.len() {
+        return Err(ErrorCode::SignedDataMismatch.into());
+    }
+
+    if message_bytes != signed_message.as_slice() {
+        return Err(ErrorCode::SignedDataMismatch.into());
+    }
+
+    Ok(true)
+}
+
+pub fn get_secp256p1_sha256_data_impl(
+    ctx: &Context<VerifyWebauthnSignature>,
+) -> Result<(Vec<u8>, Vec<u8>)> {
     let instructions_sysvar = &ctx.accounts.instructions;
 
     // Check for a previous instruction
@@ -71,13 +94,6 @@ pub fn verify_secp256p1_sha256_impl(
     }
     let pubkey_bytes = &data[pubkey_start..pubkey_end];
 
-    let mut expected_pubkey = [0u8; 33];
-    hex::decode_to_slice(&signer_compressed_public_key[2..], &mut expected_pubkey)
-        .map_err(|_| ErrorCode::InvalidHexEncoding)?;
-    if pubkey_bytes != expected_pubkey.as_slice() {
-        return Err(ErrorCode::PublicKeyMismatch.into());
-    }
-
     // Extract message
     let message_start = offsets.message_data_offset as usize;
     let message_end = message_start + offsets.message_data_size as usize;
@@ -86,15 +102,7 @@ pub fn verify_secp256p1_sha256_impl(
     }
     let message_bytes = &data[message_start..message_end];
 
-    if message_bytes.len() != signed_message.len() {
-        return Err(ErrorCode::SignedDataMismatch.into());
-    }
-
-    if message_bytes != signed_message.as_slice() {
-        return Err(ErrorCode::SignedDataMismatch.into());
-    }
-
-    Ok(true)
+    Ok((pubkey_bytes.to_vec(), message_bytes.to_vec()))
 }
 
 #[derive(Accounts)]

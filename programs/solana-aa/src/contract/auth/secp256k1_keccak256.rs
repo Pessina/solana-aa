@@ -9,6 +9,50 @@ pub fn verify_secp256k1_keccak256_impl(
     signed_message: Vec<u8>,
     signer_eth_address: String,
 ) -> Result<bool> {
+    let (eth_address, message) = get_secp256k1_keccak256_data_impl(ctx)?;
+
+    let expected_eth_address =
+        hex::decode(&signer_eth_address[2..]).map_err(|_| ErrorCode::InvalidHexEncoding)?;
+    if expected_eth_address.len() != 20 {
+        return Err(ErrorCode::InvalidAddressLength.into());
+    }
+
+    if eth_address != expected_eth_address.as_slice() {
+        return Err(ErrorCode::AddressMismatch.into());
+    }
+
+    if message != signed_message.as_slice() {
+        return Err(ErrorCode::MessageMismatch.into());
+    }
+
+    Ok(true)
+}
+
+/// Verifies a secp256k1 signature using the Solana precompiled program
+/// and returns the Ethereum address (in hex format) and the message (as UTF-8 JSON)
+///
+/// This function extracts the signature, Ethereum address, and message from the
+/// secp256k1 program instruction and verifies that the signature is valid.
+///
+/// # Arguments
+///
+/// * `ctx` - The context containing the instructions account
+///
+/// # Returns
+///
+/// A tuple containing:
+/// - The Ethereum address as a hex string with "0x" prefix
+/// - The message as a UTF-8 decoded string
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The verification instruction is missing or invalid
+/// - The instruction data format is invalid
+/// - The signature verification fails
+pub fn get_secp256k1_keccak256_data_impl(
+    ctx: &Context<VerifyEthereumSignature>,
+) -> Result<(Vec<u8>, Vec<u8>)> {
     let instructions_sysvar = &ctx.accounts.instructions;
     let current_index = load_current_index_checked(instructions_sysvar)? as usize;
     if current_index < 1 {
@@ -60,21 +104,7 @@ pub fn verify_secp256k1_keccak256_impl(
     }
     let message = &data[message_start..message_end];
 
-    let expected_eth_address =
-        hex::decode(&signer_eth_address[2..]).map_err(|_| ErrorCode::InvalidHexEncoding)?;
-    if expected_eth_address.len() != 20 {
-        return Err(ErrorCode::InvalidAddressLength.into());
-    }
-
-    if eth_address != expected_eth_address.as_slice() {
-        return Err(ErrorCode::AddressMismatch.into());
-    }
-
-    if message != signed_message.as_slice() {
-        return Err(ErrorCode::MessageMismatch.into());
-    }
-
-    Ok(true)
+    Ok((eth_address.to_vec(), message.to_vec()))
 }
 
 #[derive(Clone, Copy)]
@@ -139,4 +169,6 @@ pub enum ErrorCode {
     MessageMismatch,
     #[msg("Invalid message size")]
     InvalidMessageSize,
+    #[msg("Invalid message format")]
+    InvalidMessageFormat,
 }

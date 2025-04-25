@@ -73,12 +73,41 @@ pub mod solana_aa {
         verify_secp256k1_keccak256_impl(&_ctx, signed_message, signer_compressed_public_key)
     }
 
+    // TODO: Debug code
+    pub fn get_eth_data(ctx: Context<VerifyEthereumSignature>) -> Result<(String, String)> {
+        let (eth_address, message) = get_secp256k1_keccak256_data_impl(&ctx)?;
+
+        msg!("ETH Address: {}", hex::encode(eth_address.clone()));
+        msg!("Message: {}", String::from_utf8(message.clone()).unwrap());
+
+        Ok((
+            hex::encode(eth_address),
+            String::from_utf8(message).unwrap(),
+        ))
+    }
+
     pub fn verify_webauthn(
         ctx: Context<VerifyWebauthnSignature>,
         signed_message: Vec<u8>,
         signer_compressed_public_key: String,
     ) -> Result<bool> {
         verify_secp256p1_sha256_impl(&ctx, signed_message, signer_compressed_public_key)
+    }
+
+    // TODO: Debug code
+    pub fn get_webauthn_data(ctx: Context<VerifyWebauthnSignature>) -> Result<(String, String)> {
+        let (pubkey_bytes, message_bytes) = get_secp256p1_sha256_data_impl(&ctx)?;
+
+        msg!("Pubkey: {}", hex::encode(pubkey_bytes.clone()));
+        msg!(
+            "Message: {}",
+            String::from_utf8(message_bytes.clone()).unwrap()
+        );
+
+        Ok((
+            hex::encode(pubkey_bytes),
+            String::from_utf8(message_bytes).unwrap(),
+        ))
     }
 
     pub fn create_account(

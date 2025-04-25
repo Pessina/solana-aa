@@ -21,7 +21,6 @@ import {
   SOLANA_MAX_COMPUTE_UNITS,
   SOLANA_PRE_COMPILED_ERRORS,
 } from "../utils/constants";
-import { toHex } from "viem";
 
 const SECP256K1_PROGRAM_ID = new PublicKey(
   "KeccakSecp256k11111111111111111111111111111"
