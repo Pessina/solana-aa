@@ -244,7 +244,7 @@ async function verifyEthSignature({
   }
 }
 
-describe.only("Ethereum Signature Verification", () => {
+describe("Ethereum Signature Verification", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
 
   const TEST_INPUTS = {
@@ -554,34 +554,5 @@ describe.only("Ethereum Signature Verification", () => {
         "Should fail with invalid verification instruction error when using wrong program ID"
       );
     });
-
-    // TODO: I believe we don't need to check that the signature on our Program args is the same as the signature in the precompile, as we already know the message was signed by the address provided
-    // it.only("should fail when signature in precompile differs from signature in contract", async () => {
-    //   const testSet = TEST_INPUTS.SET_1;
-    //   const testSet2 = TEST_INPUTS.SET_2;
-
-    //   const programData = {
-    //     signature: testSet2.INPUTS[0].SIGNATURE,
-    //     message: testSet.INPUTS[0].MESSAGE,
-    //     ethAddress: testSet.ETH_ADDRESS,
-    //   };
-
-    //   const nativeProgramData = {
-    //     signature: testSet.INPUTS[0].SIGNATURE,
-    //   };
-
-    //   const result = await verifyEthSignature({
-    //     programData,
-    //     nativeProgramData,
-    //   });
-
-    //   console.log(result);
-
-    //   assert.include(
-    //     result.error.error.errorMessage || "",
-    //     "Address mismatch",
-    //     "Should fail with address mismatch error in contract while precompile verification passes"
-    //   );
-    // });
   });
 });

@@ -227,7 +227,7 @@ async function verifyWebauthnSignature({
   }
 }
 
-describe.only("WebAuthn Authentication", () => {
+describe("WebAuthn Authentication", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
 
   const TEST_INPUTS = {
