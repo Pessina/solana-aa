@@ -49,12 +49,6 @@ pub struct Transaction {
     pub action: Action,
 }
 
-#[error_code]
-pub enum ErrorCode {
-    #[msg("Failed to canonicalize transaction")]
-    FailedToCanonicalizeTransaction,
-}
-
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub enum Action {
     RemoveAccount,

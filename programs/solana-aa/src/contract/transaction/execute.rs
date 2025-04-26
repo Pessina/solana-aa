@@ -3,9 +3,7 @@ use std::io::Read;
 use anchor_lang::{prelude::*, solana_program};
 
 use crate::{
-    contract::{
-        accounts::AbstractAccount, auth::ethereum::WalletValidationData, transaction::types::UserOp,
-    },
+    contract::{accounts::AbstractAccount, transaction::types::UserOp},
     traits::signable_message::SignableMessage,
     types::identities::IdentityWithPermissions,
 };
