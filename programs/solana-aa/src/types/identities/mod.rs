@@ -26,17 +26,4 @@ impl IdentityWithPermissions {
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone)]
 pub struct IdentityPermissions {
     enable_act_as: bool,
-    evm: Option<EvmPermissions>,
-    btc: Option<BtcPermissions>,
-    cosmos: Option<CosmosPermissions>,
-    solana: Option<SolanaPermissions>,
 }
-
-#[derive(Debug, AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone)]
-pub struct EvmPermissions {}
-#[derive(Debug, AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone)]
-pub struct BtcPermissions {}
-#[derive(Debug, AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone)]
-pub struct CosmosPermissions {}
-#[derive(Debug, AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone)]
-pub struct SolanaPermissions {}

@@ -125,6 +125,8 @@ pub fn remove_identity_impl(
 
 #[account]
 pub struct AbstractAccount {
+    // Account identifier stored as a number for compactness and to enable sequential account discovery.
+    pub account_id: u128,
     pub nonce: u128,
     // TODO: Benchmark other data structures; BtreeMap, HashMap, etc.
     // Considering ~10 identities per account, a Vec might be the best choice.

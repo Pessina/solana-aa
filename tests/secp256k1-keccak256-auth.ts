@@ -16,64 +16,12 @@ import {
   addEthereumMessagePrefix,
   parseEthereumSignature,
   ethereumAddressToBytes,
+  createSecp256k1VerificationInstruction,
 } from "../utils/ethereum";
 import {
   SOLANA_MAX_COMPUTE_UNITS,
   SOLANA_PRE_COMPILED_ERRORS,
 } from "../utils/constants";
-
-const SECP256K1_PROGRAM_ID = new PublicKey(
-  "KeccakSecp256k11111111111111111111111111111"
-);
-
-const SIGNATURE_OFFSETS_SERIALIZED_SIZE = 11;
-const DATA_START = SIGNATURE_OFFSETS_SERIALIZED_SIZE + 1;
-const SIGNATURE_SERIALIZED_SIZE = 64;
-const HASHED_PUBKEY_SERIALIZED_SIZE = 20;
-
-/**
- * Creates a secp256k1 verification instruction for Ethereum signatures
- */
-function createSecp256k1VerificationInstruction(
-  signature: Buffer,
-  recoveryId: number,
-  ethAddressBytes: Buffer,
-  messageBytes: Buffer
-): TransactionInstruction {
-  const messageOffset =
-    DATA_START + HASHED_PUBKEY_SERIALIZED_SIZE + SIGNATURE_SERIALIZED_SIZE + 1;
-  const messageSize = messageBytes.length;
-  const instructionDataSize = messageOffset + messageSize;
-  const instructionData = Buffer.alloc(instructionDataSize);
-
-  instructionData.writeUInt8(1, 0);
-
-  const ethAddressOffset = DATA_START;
-  const signatureOffset = DATA_START + HASHED_PUBKEY_SERIALIZED_SIZE;
-  const recoveryIdOffset =
-    DATA_START + HASHED_PUBKEY_SERIALIZED_SIZE + SIGNATURE_SERIALIZED_SIZE;
-
-  const offsetsBuffer = Buffer.alloc(SIGNATURE_OFFSETS_SERIALIZED_SIZE);
-  offsetsBuffer.writeUInt16LE(signatureOffset, 0);
-  offsetsBuffer.writeUInt8(0, 2);
-  offsetsBuffer.writeUInt16LE(ethAddressOffset, 3);
-  offsetsBuffer.writeUInt8(0, 5);
-  offsetsBuffer.writeUInt16LE(messageOffset, 6);
-  offsetsBuffer.writeUInt16LE(messageSize, 8);
-  offsetsBuffer.writeUInt8(0, 10);
-  offsetsBuffer.copy(instructionData, 1);
-
-  ethAddressBytes.copy(instructionData, ethAddressOffset);
-  signature.copy(instructionData, signatureOffset);
-  instructionData.writeUInt8(recoveryId, recoveryIdOffset);
-  messageBytes.copy(instructionData, messageOffset);
-
-  return new TransactionInstruction({
-    keys: [],
-    programId: SECP256K1_PROGRAM_ID,
-    data: instructionData,
-  });
-}
 
 /**
  * Prepares Ethereum data for verification
@@ -95,7 +43,6 @@ function prepareEthereumData(
     messageBytes,
     ethAddressBytes,
     ethDataArgs: {
-      signature: ethData.signature,
       message: messageWithPrefix,
     },
   };
