@@ -14,7 +14,7 @@ pub struct UserOp {
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct Auth {
     /*
-    Identity is not necessary, it will be provided to the pre-compiled contract, so we can extract it from the instructions sysvar and verify if it exist on the account.
+    Identity is not necessary, it will be provided to the pre-compiled contract, so we can extract it from the instructions sysvar and verify if it exist on the target account_id.
 
     - Wallet: pre-compiled program receives the public key
     - Webauthn: pre-compiled program receives the public key
@@ -33,6 +33,15 @@ pub struct Auth {
     pub verification_context: Option<VerificationContext>,
 }
 
+/*
+Transaction to be executed by the AA.
+
+It's mandatory to provide it's not possible to compute from the signed data.
+
+- Wallet: Not necessary as the transaction it's provided to the pre-compiled contract as a verification step
+- Webauthn: Necessary as the transaction exist as a hash on the client_data challenge
+- OIDC: Necessary as the transaction exist as a hash on the nonce
+*/
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct Transaction {
     pub account_id: String, // Consider using u64 to save space

@@ -8,6 +8,8 @@ pub struct WebAuthnAuthenticator {
     // The compressed public key is optional since it cannot be obtained during passkey signing.
     // It must be stored during key creation and retrieved during authentication.
     pub compressed_public_key: Option<String>,
+    // Should likely have to include the client_data.origin and authenticators.rpIdHash as the same key-pair can be re-used across different websites.
+    // So if we only check the public key malicious.com would be able to generate a valid signature for example.com if the key-pair is reused.
 }
 
 // impl Path for WebAuthnAuthenticator {

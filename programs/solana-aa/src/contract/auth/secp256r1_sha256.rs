@@ -9,12 +9,12 @@ use anchor_lang::solana_program::{
 use bytemuck::{Pod, Zeroable};
 use hex;
 
-pub fn verify_secp256p1_sha256_impl(
+pub fn verify_secp256r1_sha256_impl(
     ctx: &Context<VerifyWebauthnSignature>,
     signed_message: Vec<u8>,
     signer_compressed_public_key: String,
 ) -> Result<bool> {
-    let (pubkey_bytes, message_bytes) = get_secp256p1_sha256_data_impl(&ctx)?;
+    let (pubkey_bytes, message_bytes) = get_secp256r1_sha256_data_impl(&ctx)?;
 
     let expected_pubkey = hex::decode(&signer_compressed_public_key[2..])
         .map_err(|_| ErrorCode::InvalidHexEncoding)?;
@@ -34,7 +34,7 @@ pub fn verify_secp256p1_sha256_impl(
     Ok(true)
 }
 
-pub fn get_secp256p1_sha256_data_impl(
+pub fn get_secp256r1_sha256_data_impl(
     ctx: &Context<VerifyWebauthnSignature>,
 ) -> Result<(Vec<u8>, Vec<u8>)> {
     let instructions_sysvar = &ctx.accounts.instructions;
