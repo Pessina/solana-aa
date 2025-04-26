@@ -12,10 +12,7 @@ export async function getTransactionReturnValue<T>(
   connection: Connection,
   txSignature: string
 ): Promise<T | null> {
-  const txInfo = (await connection.getTransaction(txSignature, {
-    commitment: "confirmed",
-    maxSupportedTransactionVersion: 0,
-  })) as unknown as {
+  const txInfo = getTxInfo({ txSignature }) as unknown as {
     meta: {
       returnData: {
         data: string[];

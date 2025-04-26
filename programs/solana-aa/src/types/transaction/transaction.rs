@@ -42,14 +42,14 @@ It's mandatory to provide it's not possible to compute from the signed data.
 - Webauthn: Necessary as the transaction exist as a hash on the client_data challenge
 - OIDC: Necessary as the transaction exist as a hash on the nonce
 */
-#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct Transaction {
-    pub account_id: String, // Consider using u64 to save space
+    pub account_id: u64, // Consider using u64 to save space
     pub nonce: u128,
     pub action: Action,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub enum Action {
     RemoveAccount,
     /*

@@ -11,7 +11,7 @@ import {
 } from "./schemas/identity";
 
 export interface WalletType {
-  type: "Ethereum";
+  Ethereum: Record<string, never>;
 }
 
 export interface WalletAuthenticator {
@@ -24,7 +24,7 @@ export interface IdentityPermissions {
 }
 
 export interface WalletIdentity {
-  wallet: WalletAuthenticator;
+  Wallet: WalletAuthenticator;
 }
 
 export interface IdentityWithPermissions {
@@ -37,9 +37,7 @@ export interface RemoveAccountAction {
 }
 
 export interface AddIdentityAction {
-  AddIdentity: {
-    identity_with_permissions: IdentityWithPermissions;
-  };
+  AddIdentity: IdentityWithPermissions;
 }
 
 export interface RemoveIdentityAction {

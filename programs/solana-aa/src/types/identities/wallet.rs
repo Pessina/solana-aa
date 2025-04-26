@@ -10,5 +10,5 @@ pub enum WalletType {
 #[derive(Debug, AnchorDeserialize, AnchorSerialize, PartialEq, Eq, Clone)]
 pub struct WalletAuthenticator {
     pub wallet_type: WalletType,
-    pub compressed_public_key: String,
+    pub compressed_public_key: [u8; 20],
 }
