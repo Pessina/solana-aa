@@ -1,9 +1,6 @@
 import * as borsh from "borsh";
 import { transactionSchema } from "./schemas/transaction";
-import {
-  walletAuthenticatorSchema,
-  walletTypeSchema,
-} from "./schemas/identity/wallet";
+import { walletTypeSchema } from "./schemas/identity/wallet";
 import {
   identitySchema,
   identityWithPermissionsSchema,
@@ -11,24 +8,19 @@ import {
 } from "./schemas/identity";
 
 export interface WalletType {
-  Ethereum: Record<string, never>;
+  Ethereum: Uint8Array;
 }
 
-export interface WalletAuthenticator {
-  wallet_type: WalletType;
-  compressed_public_key: Uint8Array;
+export interface Identity {
+  Wallet: WalletType;
 }
 
 export interface IdentityPermissions {
   enable_act_as: boolean;
 }
 
-export interface WalletIdentity {
-  Wallet: WalletAuthenticator;
-}
-
 export interface IdentityWithPermissions {
-  identity: WalletIdentity;
+  identity: Identity;
   permissions: IdentityPermissions | null;
 }
 
@@ -41,7 +33,7 @@ export interface AddIdentityAction {
 }
 
 export interface RemoveIdentityAction {
-  RemoveIdentity: WalletIdentity;
+  RemoveIdentity: Identity;
 }
 
 export type Action =
@@ -63,15 +55,11 @@ export const borshUtils = {
       return borsh.serialize(walletTypeSchema, walletType);
     },
 
-    walletAuthenticator: (authenticator: WalletAuthenticator): Uint8Array => {
-      return borsh.serialize(walletAuthenticatorSchema, authenticator);
-    },
-
     identityPermissions: (permissions: IdentityPermissions): Uint8Array => {
       return borsh.serialize(identityPermissionsSchema, permissions);
     },
 
-    identity: (identity: WalletIdentity): Uint8Array => {
+    identity: (identity: Identity): Uint8Array => {
       return borsh.serialize(identitySchema, identity);
     },
 
@@ -95,13 +83,6 @@ export const borshUtils = {
       return borsh.deserialize(walletTypeSchema, buffer) as WalletType;
     },
 
-    walletAuthenticator: (buffer: Uint8Array): WalletAuthenticator => {
-      return borsh.deserialize(
-        walletAuthenticatorSchema,
-        buffer
-      ) as WalletAuthenticator;
-    },
-
     identityPermissions: (buffer: Uint8Array): IdentityPermissions => {
       return borsh.deserialize(
         identityPermissionsSchema,
@@ -109,8 +90,8 @@ export const borshUtils = {
       ) as IdentityPermissions;
     },
 
-    identity: (buffer: Uint8Array): WalletIdentity => {
-      return borsh.deserialize(identitySchema, buffer) as WalletIdentity;
+    identity: (buffer: Uint8Array): Identity => {
+      return borsh.deserialize(identitySchema, buffer) as Identity;
     },
 
     identityWithPermissions: (buffer: Uint8Array): IdentityWithPermissions => {

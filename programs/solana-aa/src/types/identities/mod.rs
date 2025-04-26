@@ -5,7 +5,7 @@ pub mod webauthn;
 
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone)]
 pub enum Identity {
-    Wallet(wallet::WalletAuthenticator),
+    Wallet(wallet::WalletType),
     WebAuthn(webauthn::WebAuthnAuthenticator),
 }
 
