@@ -1,7 +1,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { signWithEthereum } from "../utils/secp256k1-signer";
-import { borshUtils, Transaction } from "../utils/borsh";
+import { AddIdentityAction, borshUtils, Transaction } from "../utils/borsh";
 import { SolanaAa } from "../target/types/solana_aa";
 import {
   confirmTransaction,
@@ -15,6 +15,7 @@ import {
   createSecp256k1VerificationInstruction,
 } from "../utils/ethereum";
 import { keccak256 } from "viem";
+import { expect } from "chai";
 
 describe.only("Ethereum Signature Verification", () => {
   const provider = anchor.getProvider() as anchor.AnchorProvider;
@@ -34,8 +35,7 @@ describe.only("Ethereum Signature Verification", () => {
         AddIdentity: {
           identity: {
             Wallet: {
-              wallet_type: { Ethereum: {} },
-              compressed_public_key: new Uint8Array(
+              Ethereum: new Uint8Array(
                 Buffer.from(
                   messageJson.action.AddIdentity.identity.Wallet.public_key.slice(
                     2
@@ -70,8 +70,6 @@ describe.only("Ethereum Signature Verification", () => {
     } = parseEthereumSignature(ethSignature.signature);
     const precompileAddressBytes = ethereumAddressToBytes(ethSignature.address);
 
-    console.log(ethSignature.address);
-
     const verificationInstruction = createSecp256k1VerificationInstruction(
       precompileSignatureBuffer,
       precompileRecoveryId,
@@ -91,6 +89,64 @@ describe.only("Ethereum Signature Verification", () => {
 
     const result = await getTxInfo({ txSignature });
 
-    console.log(JSON.stringify(result, null, 2));
+    const returnData = result?.meta?.returnData?.data[0];
+    const decodedData = Buffer.from(returnData, "base64");
+
+    const ethAddressLength = decodedData.readUInt32LE(0);
+    const ethAddressHex = decodedData.slice(4, 4 + ethAddressLength).toString();
+    expect(ethAddressHex).to.equal(ethSignature.address.slice(2).toLowerCase());
+
+    const transactionDataStart = 4 + ethAddressLength;
+    const transactionData = decodedData.slice(transactionDataStart);
+
+    const deserializedTransaction =
+      borshUtils.deserialize.transaction(transactionData);
+
+    expect(deserializedTransaction.account_id.toString()).to.equal(
+      transaction.account_id.toString()
+    );
+    expect(deserializedTransaction.nonce.toString()).to.equal(
+      transaction.nonce.toString()
+    );
+
+    expect("AddIdentity" in deserializedTransaction.action).to.be.true;
+    expect("AddIdentity" in transaction.action).to.be.true;
+
+    if (
+      "AddIdentity" in transaction.action &&
+      "AddIdentity" in deserializedTransaction.action
+    ) {
+      const sentIdentity = transaction.action.AddIdentity;
+      const receivedIdentity = deserializedTransaction.action.AddIdentity;
+
+      expect("Wallet" in receivedIdentity.identity).to.be.true;
+      expect("Wallet" in sentIdentity.identity).to.be.true;
+
+      if (
+        "Wallet" in sentIdentity.identity &&
+        "Wallet" in receivedIdentity.identity
+      ) {
+        expect("Ethereum" in receivedIdentity.identity.Wallet).to.be.true;
+        expect("Ethereum" in sentIdentity.identity.Wallet).to.be.true;
+
+        if (
+          "Ethereum" in sentIdentity.identity.Wallet &&
+          "Ethereum" in receivedIdentity.identity.Wallet
+        ) {
+          expect(
+            Buffer.from(receivedIdentity.identity.Wallet.Ethereum)
+          ).to.deep.equal(Buffer.from(sentIdentity.identity.Wallet.Ethereum));
+        }
+      }
+
+      expect(receivedIdentity.permissions).to.not.be.null;
+      expect(sentIdentity.permissions).to.not.be.null;
+
+      if (sentIdentity.permissions && receivedIdentity.permissions) {
+        expect(receivedIdentity.permissions.enable_act_as).to.equal(
+          sentIdentity.permissions.enable_act_as
+        );
+      }
+    }
   });
 });

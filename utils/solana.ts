@@ -12,14 +12,7 @@ export async function getTransactionReturnValue<T>(
   connection: Connection,
   txSignature: string
 ): Promise<T | null> {
-  const txInfo = getTxInfo({ txSignature }) as unknown as {
-    meta: {
-      returnData: {
-        data: string[];
-      };
-      logMessages: string[];
-    };
-  };
+  const txInfo = await getTxInfo({ txSignature });
 
   return txInfo?.meta?.returnData?.data
     ? (Buffer.from(txInfo.meta.returnData.data[0], "base64") as unknown as T)
@@ -74,13 +67,23 @@ export const logComputeUnitsUsed = async ({
  * @param compressedPublicKey Compressed public key
  */
 export const getTxInfo = async ({ txSignature }: { txSignature: string }) => {
-  if (txSignature) {
-    const provider = anchor.getProvider() as anchor.AnchorProvider;
-    const txInfo = await provider.connection.getTransaction(txSignature, {
-      commitment: "confirmed",
-      maxSupportedTransactionVersion: 0,
-    });
+  const provider = anchor.getProvider() as anchor.AnchorProvider;
+  const txInfo = await provider.connection.getTransaction(txSignature, {
+    commitment: "confirmed",
+    maxSupportedTransactionVersion: 0,
+  });
 
-    return txInfo;
+  if (!txInfo) {
+    throw new Error("Transaction not found");
   }
+
+  return txInfo as unknown as {
+    meta: {
+      returnData: {
+        data: string[];
+      };
+      logMessages: string[];
+      computeUnitsConsumed: number;
+    };
+  };
 };
