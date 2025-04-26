@@ -1,16 +1,23 @@
-import { privateKeyToAccount, signMessage } from "viem/accounts";
-import { Hex } from "viem";
+import {
+  privateKeyToAccount,
+  signMessage,
+  sign,
+  serializeSignature,
+} from "viem/accounts";
+import { ByteArray, Hex, toHex } from "viem";
 
-export async function signWithEthereum(
-  hash: Hex,
-  privateKey: Hex
-): Promise<{
+export async function signWithEthereum({
+  hash,
+  privateKey,
+}: {
+  hash: Hex;
+  privateKey: Hex;
+}): Promise<{
   signature: Hex;
   address: Hex;
-  hash: Hex;
 }> {
-  const signature = await signMessage({
-    message: { raw: hash },
+  const signature = await sign({
+    hash,
     privateKey,
   });
 
@@ -18,7 +25,6 @@ export async function signWithEthereum(
 
   return {
     address: address.address,
-    signature,
-    hash,
+    signature: serializeSignature(signature),
   };
 }

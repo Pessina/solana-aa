@@ -1,20 +1,20 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { signWithEthereum } from "../utils/secp256k1-signer";
-import { borshUtils, Transaction, AddIdentityAction } from "../utils/borsh";
+import { borshUtils, Transaction } from "../utils/borsh";
 import { SolanaAa } from "../target/types/solana_aa";
 import {
   confirmTransaction,
   getTransactionReturnValue,
+  getTxInfo,
   logComputeUnitsUsed,
 } from "../utils/solana";
 import {
-  addEthereumMessagePrefix,
   parseEthereumSignature,
   ethereumAddressToBytes,
   createSecp256k1VerificationInstruction,
 } from "../utils/ethereum";
-import { toHex } from "viem";
+import { keccak256 } from "viem";
 
 describe.only("Ethereum Signature Verification", () => {
   const provider = anchor.getProvider() as anchor.AnchorProvider;
@@ -32,39 +32,37 @@ describe.only("Ethereum Signature Verification", () => {
       nonce: BigInt(messageJson.nonce),
       action: {
         AddIdentity: {
-          identity_with_permissions: {
-            identity: {
-              wallet: {
-                wallet_type: { type: "Ethereum" },
-                compressed_public_key: new Uint8Array(
-                  Buffer.from(
-                    messageJson.action.AddIdentity.identity.Wallet.public_key.slice(
-                      2
-                    ),
-                    "hex"
-                  )
-                ),
-              },
+          identity: {
+            Wallet: {
+              wallet_type: { Ethereum: {} },
+              compressed_public_key: new Uint8Array(
+                Buffer.from(
+                  messageJson.action.AddIdentity.identity.Wallet.public_key.slice(
+                    2
+                  ),
+                  "hex"
+                )
+              ).slice(0, 20),
             },
-            permissions: {
-              enable_act_as:
-                messageJson.action.AddIdentity.permissions.enable_act_as,
-            },
+          },
+          permissions: {
+            enable_act_as:
+              messageJson.action.AddIdentity.permissions.enable_act_as,
           },
         },
       },
     };
 
-    const serializedMessage = borshUtils.serialize.transaction(transaction);
-
-    console.log(serializedMessage);
+    const serializedMessage = Buffer.from(
+      borshUtils.serialize.transaction(transaction)
+    );
 
     const privateKey =
       "0x4646464646464646464646464646464646464646464646464646464646464646" as const;
-    const ethSignature = await signWithEthereum(
-      toHex(serializedMessage),
-      privateKey
-    );
+    const ethSignature = await signWithEthereum({
+      hash: keccak256(serializedMessage),
+      privateKey,
+    });
 
     const {
       signature: precompileSignatureBuffer,
@@ -72,24 +70,17 @@ describe.only("Ethereum Signature Verification", () => {
     } = parseEthereumSignature(ethSignature.signature);
     const precompileAddressBytes = ethereumAddressToBytes(ethSignature.address);
 
-    const ethDataArgs = {
-      message: serializedMessage,
-      signature: ethSignature.signature,
-    };
-
-    const programData = {
-      ethAddress: ethSignature.address,
-    };
+    console.log(ethSignature.address);
 
     const verificationInstruction = createSecp256k1VerificationInstruction(
       precompileSignatureBuffer,
       precompileRecoveryId,
       precompileAddressBytes,
-      Buffer.from(serializedMessage)
+      serializedMessage
     );
 
     const txSignature = await program.methods
-      .verifyEth(Buffer.from(ethDataArgs.message), programData.ethAddress)
+      .getEthData()
       .accounts({
         instructions_sysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
       })
@@ -98,9 +89,8 @@ describe.only("Ethereum Signature Verification", () => {
 
     await confirmTransaction(provider.connection, txSignature);
 
-    const result = await getTransactionReturnValue<Uint8Array | null>(
-      provider.connection,
-      txSignature
-    );
+    const result = await getTxInfo({ txSignature });
+
+    console.log(JSON.stringify(result, null, 2));
   });
 });

@@ -15,6 +15,8 @@ declare_id!("2PYNfKSoM7rFJeMuvEidASxgpdPAXYascVDmH6jpBa7o");
 #[program]
 pub mod solana_aa {
 
+    use crate::types::transaction::transaction::Transaction;
+
     use super::*;
 
     pub fn init_storage(
@@ -74,16 +76,14 @@ pub mod solana_aa {
     }
 
     // TODO: Debug code
-    pub fn get_eth_data(ctx: Context<VerifyEthereumSignature>) -> Result<(String, String)> {
+    pub fn get_eth_data(ctx: Context<VerifyEthereumSignature>) -> Result<(String, Transaction)> {
         let (eth_address, message) = get_secp256k1_keccak256_data_impl(&ctx)?;
 
         msg!("ETH Address: {}", hex::encode(eth_address.clone()));
-        msg!("Message: {}", String::from_utf8(message.clone()).unwrap());
+        let transaction = Transaction::try_from_slice(&message).unwrap();
+        msg!("Message: {:?}", transaction);
 
-        Ok((
-            hex::encode(eth_address),
-            String::from_utf8(message).unwrap(),
-        ))
+        Ok((hex::encode(eth_address), transaction))
     }
 
     pub fn verify_webauthn(
