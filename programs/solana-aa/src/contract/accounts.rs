@@ -54,7 +54,7 @@ pub struct CreateAccount<'info> {
         init_if_needed,
         payer = signer,
         space = AbstractAccount::initial_size(&identity_with_permissions),
-        seeds = [b"account", account_manager.latest_account_id.to_le_bytes().as_ref()],
+        seeds = [b"account", account_manager.next_account_id.to_le_bytes().as_ref()],
         bump,
     )]
     pub abstract_account: Account<'info, AbstractAccount>,
@@ -69,7 +69,7 @@ pub fn create_account_impl(
     ctx.accounts.abstract_account.nonce = ctx.accounts.account_manager.max_nonce;
     ctx.accounts.abstract_account.identities = vec![identity_with_permissions];
 
-    ctx.accounts.account_manager.increment_latest_account_id();
+    ctx.accounts.account_manager.increment_next_account_id();
 
     Ok(())
 }

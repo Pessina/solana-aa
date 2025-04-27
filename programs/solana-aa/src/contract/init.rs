@@ -20,7 +20,7 @@ pub struct InitContract<'info> {
 
 pub fn init_contract_impl(ctx: Context<InitContract>) -> Result<()> {
     ctx.accounts.account_manager.max_nonce = 0;
-    ctx.accounts.account_manager.latest_account_id = 0;
+    ctx.accounts.account_manager.next_account_id = 0;
 
     Ok(())
 }

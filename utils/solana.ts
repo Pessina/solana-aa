@@ -61,6 +61,7 @@ export const logComputeUnitsUsed = async ({
     );
   }
 };
+
 /**
  * Logs the compute units used for a transaction
  * @param txSignature Transaction signature

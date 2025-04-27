@@ -11,7 +11,7 @@ pub struct AccountManager {
 
     Enabling sequential account discovery and use minimal storage.
     */
-    pub latest_account_id: AccountId,
+    pub next_account_id: AccountId,
 
     /*
     Tracks the maximum nonce of the accounts deleted.
@@ -31,15 +31,15 @@ impl AccountManager {
 
     pub fn new() -> Self {
         Self {
-            latest_account_id: 0,
+            next_account_id: 0,
             max_nonce: 0,
         }
     }
 
-    pub fn increment_latest_account_id(&mut self) -> AccountId {
-        let old_latest_account_id = self.latest_account_id;
-        self.latest_account_id = self.latest_account_id.saturating_add(1);
-        old_latest_account_id
+    pub fn increment_next_account_id(&mut self) -> AccountId {
+        let old_next_account_id = self.next_account_id;
+        self.next_account_id = self.next_account_id.saturating_add(1);
+        old_next_account_id
     }
 
     pub fn update_max_nonce(&mut self, new_max_nonce: Nonce) -> Nonce {
