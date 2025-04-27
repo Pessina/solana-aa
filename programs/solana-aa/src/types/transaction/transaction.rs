@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-use crate::types::identities::{Identity, IdentityWithPermissions};
+use crate::types::identity::{Identity, IdentityWithPermissions};
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct UserOp {

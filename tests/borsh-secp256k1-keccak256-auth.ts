@@ -6,7 +6,7 @@ import {
   Identity,
   IdentityWithPermissions,
   Transaction,
-} from "../utils/borsh";
+} from "../borsh";
 import { SolanaAa } from "../target/types/solana_aa";
 import { confirmTransaction, getTxInfo } from "../utils/solana";
 import {
