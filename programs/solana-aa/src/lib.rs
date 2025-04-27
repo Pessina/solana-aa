@@ -7,6 +7,7 @@ mod types;
 use crate::contract::accounts::*;
 use crate::contract::auth::secp256k1_keccak256::*;
 use crate::contract::auth::secp256r1_sha256::*;
+use crate::contract::close::*;
 use crate::contract::init::*;
 use crate::contract::transaction_buffer::*;
 use crate::types::account::AccountId;
@@ -22,6 +23,10 @@ pub mod solana_aa {
 
     pub fn init_contract(ctx: Context<InitContract>) -> Result<()> {
         init_contract_impl(ctx)
+    }
+
+    pub fn close_contract(_ctx: Context<CloseContract>) -> Result<()> {
+        Ok(())
     }
 
     pub fn init_storage(

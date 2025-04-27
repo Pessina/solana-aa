@@ -48,63 +48,70 @@ const findAccountPDA = (accountId: BN, programId: PublicKey) => {
   );
 };
 
+const findAccountManagerPDA = (programId: PublicKey) => {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("account_manager")],
+    programId
+  );
+};
+
 describe.only("Accounts", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const connection = anchor.getProvider().connection;
   const program = anchor.workspace.solanaAa as Program<SolanaAa>;
   const provider = anchor.getProvider() as anchor.AnchorProvider;
 
-  before(async () => {
-    const signature = await program.methods.initContract().rpc();
-
-    await confirmTransaction(connection, signature);
-  });
-
   beforeEach(async () => {
-    // Reset the validator before each test to ensure a clean state
     try {
-      await connection.requestAirdrop(provider.wallet.publicKey, 1000000000);
-      await new Promise((resolve) => setTimeout(resolve, 500)); // Small delay to ensure airdrop completes
+      const [accountManagerPDA] = findAccountManagerPDA(program.programId);
+      let accountManagerInfo;
 
-      // Reset the validator by clearing all accounts and transactions
-      const resetCmd = require("child_process").spawnSync(
-        "solana-test-validator",
-        ["--reset"],
-        {
-          stdio: "ignore",
-          shell: true,
-        }
-      );
-
-      if (resetCmd.error) {
-        console.error("Error resetting validator:", resetCmd.error);
+      try {
+        accountManagerInfo = await program.account.accountManager.fetch(
+          accountManagerPDA
+        );
+      } catch (error) {
+        console.log("Account manager doesn't exist yet");
       }
 
-      // Wait a moment for the validator to restart
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    } catch (error: any) {
-      console.error("Failed to reset validator:", error.message);
-    }
-    try {
-      const [accountPDA] = findAccountPDA(new BN(0), program.programId);
+      if (accountManagerInfo) {
+        const latestAccountId = accountManagerInfo.latestAccountId;
 
-      const accountInfo = await connection.getAccountInfo(accountPDA);
+        for (let i = 0; i <= latestAccountId.toNumber(); i++) {
+          const [accountPDA] = findAccountPDA(new BN(i), program.programId);
 
-      if (accountInfo) {
-        const signature = await program.methods
-          .deleteAccount(new BN(0))
+          try {
+            const accountInfo = await connection.getAccountInfo(accountPDA);
+
+            if (accountInfo) {
+              const signature = await program.methods
+                .deleteAccount(new BN(i))
+                .accounts({
+                  signer: provider.wallet.publicKey,
+                })
+                .rpc();
+
+              await confirmTransaction(connection, signature);
+            }
+          } catch (error) {
+            console.log(`No account with ID ${i} or error deleting it:`, error);
+          }
+        }
+
+        const closeSignature = await program.methods
+          .closeContract()
           .accounts({
             signer: provider.wallet.publicKey,
           })
           .rpc();
 
-        await confirmTransaction(connection, signature);
+        await confirmTransaction(connection, closeSignature);
       }
+
+      const initSignature = await program.methods.initContract().rpc();
+      await confirmTransaction(connection, initSignature);
     } catch (error: any) {
-      console.log(
-        "Setup: No account to clean up or error occurred:",
-        error.message
-      );
+      console.log("Setup error:", error.message);
     }
   });
 
@@ -164,31 +171,40 @@ describe.only("Accounts", () => {
       "Should have 2 identities"
     );
 
-    const webAuthnIdentityWithPermissions = accountInfo.identities.find(
-      (id) => id.identity.webAuthn
+    // Find the first Ethereum identity (original one)
+    const firstEthereumIdentity = accountInfo.identities.find(
+      (id) =>
+        id.identity.wallet &&
+        Array.from(id.identity.wallet[0].ethereum[0]).toString() ===
+          Array.from(toBytes(ETH_PUBLIC_KEY)).toString()
     );
 
     assert.isDefined(
-      webAuthnIdentityWithPermissions,
-      "WebAuthn identity should exist"
+      firstEthereumIdentity,
+      "First Ethereum identity should exist"
     );
-    assert.strictEqual(
-      webAuthnIdentityWithPermissions?.identity.webAuthn?.[0].keyId,
-      WEBAUTHN_KEY_ID,
-      "WebAuthn credential ID should match"
+    assert.deepEqual(
+      firstEthereumIdentity?.identity.wallet?.[0].ethereum?.[0],
+      Array.from(toBytes(ETH_PUBLIC_KEY)),
+      "First Ethereum public key should match"
     );
 
-    const ethereumIdentityWithPermissions = accountInfo.identities.find(
-      (id) => id.identity.wallet
+    // Find the second Ethereum identity
+    const secondEthereumIdentity = accountInfo.identities.find(
+      (id) =>
+        id.identity.wallet &&
+        Array.from(id.identity.wallet[0].ethereum[0]).toString() ===
+          Array.from(toBytes(ETH_PUBLIC_KEY_2)).toString()
     );
+
     assert.isDefined(
-      ethereumIdentityWithPermissions,
-      "Ethereum identity should exist"
+      secondEthereumIdentity,
+      "Second Ethereum identity should exist"
     );
-    assert.strictEqual(
-      ethereumIdentityWithPermissions?.identity.wallet?.[0].ethereum?.[0],
+    assert.deepEqual(
+      secondEthereumIdentity?.identity.wallet?.[0].ethereum?.[0],
       Array.from(toBytes(ETH_PUBLIC_KEY_2)),
-      "Ethereum public key should match"
+      "Second Ethereum public key should match"
     );
   });
 
@@ -200,7 +216,7 @@ describe.only("Accounts", () => {
     await confirmTransaction(connection, createSignature);
 
     const addSignature = await program.methods
-      .addIdentity(new BN(0), ETHEREUM_IDENTITY_WITH_PERMISSIONS)
+      .addIdentity(new BN(0), ETHEREUM_IDENTITY_WITH_PERMISSIONS_2)
       .rpc();
 
     await confirmTransaction(connection, addSignature);
@@ -229,13 +245,13 @@ describe.only("Accounts", () => {
 
     const remainingIdentityWithPermissions = accountInfo.identities[0];
     assert.isDefined(
-      remainingIdentityWithPermissions.identity.webAuthn,
-      "Remaining identity should be WebAuthn type"
+      remainingIdentityWithPermissions.identity.wallet,
+      "Remaining identity should be Ethereum wallet type"
     );
-    assert.strictEqual(
-      remainingIdentityWithPermissions.identity.webAuthn[0].keyId,
-      WEBAUTHN_KEY_ID,
-      "WebAuthn credential ID should match"
+    assert.deepEqual(
+      remainingIdentityWithPermissions.identity.wallet[0].ethereum[0],
+      Array.from(toBytes(ETH_PUBLIC_KEY_2)),
+      "Ethereum public key should match"
     );
   });
 
