@@ -274,7 +274,7 @@ describe("Accounts", () => {
     );
   });
 
-  it("Can create accounts with different identities and check account manager state", async () => {
+  it("can create accounts with different identities and check account manager state", async () => {
     const accounts = [
       ETHEREUM_IDENTITY_WITH_PERMISSIONS,
       ETHEREUM_IDENTITY_WITH_PERMISSIONS_2,
