@@ -1,4 +1,4 @@
-use super::identities::{Identity, IdentityWithPermissions};
+use super::identity::{Identity, IdentityWithPermissions};
 use anchor_lang::prelude::*;
 
 pub type AccountId = u64;
@@ -52,10 +52,11 @@ impl AbstractAccount {
 
     pub fn initial_size(identity_with_permissions: &IdentityWithPermissions) -> usize {
         const PDA_DISCRIMINATOR_SIZE: usize = 8;
+        const ACCOUNT_ID_SIZE: usize = 8;
         const NONCE_SIZE: usize = 16;
         const VEC_SIZE: usize = 4;
 
-        let mut size = PDA_DISCRIMINATOR_SIZE + NONCE_SIZE + VEC_SIZE;
+        let mut size = PDA_DISCRIMINATOR_SIZE + ACCOUNT_ID_SIZE + NONCE_SIZE + VEC_SIZE;
         size += identity_with_permissions.byte_size();
 
         size

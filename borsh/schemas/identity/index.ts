@@ -1,19 +1,14 @@
 import { Schema } from "borsh";
 import { walletTypeSchema } from "./wallet";
 
-// Basic types
 export const identityPermissionsSchema: Schema = {
   struct: {
     enable_act_as: "bool",
   },
 };
 
-// Identity types
 export const identitySchema: Schema = {
-  enum: [
-    { struct: { Wallet: walletTypeSchema } },
-    // Add WebAuthn when needed
-  ],
+  enum: [{ struct: { Wallet: walletTypeSchema } }],
 };
 
 export const identityWithPermissionsSchema: Schema = {
@@ -22,3 +17,5 @@ export const identityWithPermissionsSchema: Schema = {
     permissions: { option: identityPermissionsSchema },
   },
 };
+
+export * from "./wallet";

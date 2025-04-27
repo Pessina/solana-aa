@@ -1,7 +1,7 @@
 use crate::types::{
     account::{AbstractAccount, AccountId},
     account_manager::AccountManager,
-    identities::*,
+    identity::*,
 };
 use anchor_lang::prelude::*;
 

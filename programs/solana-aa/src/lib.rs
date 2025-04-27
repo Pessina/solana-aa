@@ -10,7 +10,7 @@ use crate::contract::auth::secp256r1_sha256::*;
 use crate::contract::init::*;
 use crate::contract::transaction_buffer::*;
 use crate::types::account::AccountId;
-use crate::types::identities::*;
+use crate::types::identity::*;
 use crate::types::transaction::transaction::Transaction;
 
 declare_id!("2PYNfKSoM7rFJeMuvEidASxgpdPAXYascVDmH6jpBa7o");
