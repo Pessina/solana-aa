@@ -1,81 +1,87 @@
-use crate::types::identities::*;
+use crate::types::{
+    account::{AbstractAccount, AccountId},
+    account_manager::AccountManager,
+    identities::*,
+};
 use anchor_lang::prelude::*;
 
-#[error_code]
-pub enum ErrorCode {
-    #[msg("Arithmetic overflow occurred")]
-    ArithmeticOverflow,
-}
-
 #[derive(Accounts)]
-#[instruction(account_id: String)]
+#[instruction(account_id: AccountId)]
 pub struct DeleteAccount<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
+
     #[account(
         mut,
-        seeds = [b"account", account_id.as_bytes()],
+        seeds = [b"account_manager"],
+        bump,
+    )]
+    pub account_manager: Account<'info, AccountManager>,
+
+    #[account(
+        mut,
+        seeds = [b"account", account_id.to_le_bytes().as_ref()],
         bump,
         close = signer
     )]
     pub abstract_account: Account<'info, AbstractAccount>,
+
     pub system_program: Program<'info, System>,
 }
 
-pub fn delete_account_impl(ctx: Context<DeleteAccount>, account_id: String) -> Result<()> {
-    msg!("Deleting account: {}", account_id);
-    // TODO: Update global nonce to avoid account reuse
+pub fn delete_account_impl(ctx: Context<DeleteAccount>) -> Result<()> {
+    ctx.accounts
+        .account_manager
+        .update_max_nonce(ctx.accounts.abstract_account.nonce);
 
     Ok(())
 }
 
 #[derive(Accounts)]
-#[instruction(account_id: String, identity_with_permissions: IdentityWithPermissions)]
+#[instruction(identity_with_permissions: IdentityWithPermissions)]
 pub struct CreateAccount<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [b"account_manager"],
+        bump,
+    )]
+    pub account_manager: Account<'info, AccountManager>,
+
     #[account(
         init_if_needed,
         payer = signer,
-        space = get_account_initial_size(&identity_with_permissions),
-        seeds = [b"account", account_id.as_bytes()],
+        space = AbstractAccount::initial_size(&identity_with_permissions),
+        seeds = [b"account", account_manager.latest_account_id.to_le_bytes().as_ref()],
         bump,
     )]
     pub abstract_account: Account<'info, AbstractAccount>,
+
     pub system_program: Program<'info, System>,
-}
-
-fn get_account_initial_size(identity_with_permissions: &IdentityWithPermissions) -> usize {
-    const PDA_DISCRIMINATOR_SIZE: usize = 8;
-    const NONCE_SIZE: usize = 16;
-    const VEC_SIZE: usize = 4;
-
-    let mut size = PDA_DISCRIMINATOR_SIZE + NONCE_SIZE + VEC_SIZE;
-    size += identity_with_permissions.byte_size();
-
-    size
 }
 
 pub fn create_account_impl(
     ctx: Context<CreateAccount>,
-    _account_id: String,
     identity_with_permissions: IdentityWithPermissions,
 ) -> Result<()> {
-    // TODO: Create manager account that track the global nonce and initialize this with the global nonce
-    ctx.accounts.abstract_account.nonce = 0;
+    ctx.accounts.abstract_account.nonce = ctx.accounts.account_manager.max_nonce;
     ctx.accounts.abstract_account.identities = vec![identity_with_permissions];
+
+    ctx.accounts.account_manager.increment_latest_account_id();
 
     Ok(())
 }
 
 #[derive(Accounts)]
-#[instruction(account_id: String, identity_with_permissions: IdentityWithPermissions)]
+#[instruction(account_id: AccountId, identity_with_permissions: IdentityWithPermissions)]
 pub struct AddIdentity<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
     #[account(
         mut,
-        seeds = [b"account", account_id.as_bytes()],
+        seeds = [b"account", account_id.to_le_bytes().as_ref()],
         bump,
         realloc = abstract_account.to_account_info().data_len() + identity_with_permissions.byte_size(),
         realloc::payer = signer,
@@ -87,7 +93,7 @@ pub struct AddIdentity<'info> {
 
 pub fn add_identity_impl(
     ctx: Context<AddIdentity>,
-    _account_id: String,
+    _account_id: AccountId,
     identity_with_permissions: IdentityWithPermissions,
 ) -> Result<()> {
     ctx.accounts
@@ -97,13 +103,13 @@ pub fn add_identity_impl(
 }
 
 #[derive(Accounts)]
-#[instruction(account_id: String, identity: Identity)]
+#[instruction(account_id: AccountId, identity: Identity)]
 pub struct RemoveIdentity<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
     #[account(
         mut,
-        seeds = [b"account", account_id.as_bytes()],
+        seeds = [b"account", account_id.to_le_bytes().as_ref()],
         bump,
         // TODO: Throw proper error
         realloc = abstract_account.to_account_info().data_len() - abstract_account.find_identity(&identity).expect("Identity not found").byte_size(),
@@ -116,48 +122,9 @@ pub struct RemoveIdentity<'info> {
 
 pub fn remove_identity_impl(
     ctx: Context<RemoveIdentity>,
-    _account_id: String,
+    _account_id: AccountId,
     identity: Identity,
 ) -> Result<()> {
     ctx.accounts.abstract_account.remove_identity(&identity);
     Ok(())
-}
-
-#[account]
-pub struct AbstractAccount {
-    // Account identifier stored as a number for compactness and to enable sequential account discovery.
-    pub account_id: u128,
-    pub nonce: u128,
-    // TODO: Benchmark other data structures; BtreeMap, HashMap, etc.
-    // Considering ~10 identities per account, a Vec might be the best choice.
-    // Vec avoid the overhead of Key-Value pair of BTreeMap and HashMap softening the usage of Heap and Stack.
-    pub identities: Vec<IdentityWithPermissions>,
-}
-
-impl AbstractAccount {
-    pub fn increment_nonce(&mut self) {
-        self.nonce = self.nonce.saturating_add(1);
-    }
-
-    // TODO: Include memory usage check to avoid overflowing solana limits
-    pub fn add_identity(&mut self, identity_with_permissions: IdentityWithPermissions) {
-        if !self.has_identity(&identity_with_permissions.identity) {
-            self.identities.push(identity_with_permissions);
-        }
-    }
-
-    pub fn remove_identity(&mut self, identity: &Identity) -> bool {
-        let initial_len = self.identities.len();
-        self.identities.retain(|i| &i.identity != identity);
-
-        initial_len > self.identities.len()
-    }
-
-    pub fn has_identity(&self, identity: &Identity) -> bool {
-        self.identities.iter().any(|i| &i.identity == identity)
-    }
-
-    pub fn find_identity(&self, identity: &Identity) -> Option<&IdentityWithPermissions> {
-        self.identities.iter().find(|i| &i.identity == identity)
-    }
 }

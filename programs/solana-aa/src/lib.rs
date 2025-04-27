@@ -7,17 +7,22 @@ mod types;
 use crate::contract::accounts::*;
 use crate::contract::auth::secp256k1_keccak256::*;
 use crate::contract::auth::secp256r1_sha256::*;
+use crate::contract::init::*;
 use crate::contract::transaction_buffer::*;
+use crate::types::account::AccountId;
 use crate::types::identities::*;
+use crate::types::transaction::transaction::Transaction;
 
 declare_id!("2PYNfKSoM7rFJeMuvEidASxgpdPAXYascVDmH6jpBa7o");
 
 #[program]
 pub mod solana_aa {
 
-    use crate::types::transaction::transaction::Transaction;
-
     use super::*;
+
+    pub fn init_contract(ctx: Context<InitContract>) -> Result<()> {
+        init_contract_impl(ctx)
+    }
 
     pub fn init_storage(
         ctx: Context<InitStorage>,
@@ -112,19 +117,18 @@ pub mod solana_aa {
 
     pub fn create_account(
         ctx: Context<CreateAccount>,
-        account_id: String,
         identity_with_permissions: IdentityWithPermissions,
     ) -> Result<()> {
-        create_account_impl(ctx, account_id, identity_with_permissions)
+        create_account_impl(ctx, identity_with_permissions)
     }
 
-    pub fn delete_account(ctx: Context<DeleteAccount>, account_id: String) -> Result<()> {
-        delete_account_impl(ctx, account_id)
+    pub fn delete_account(ctx: Context<DeleteAccount>, _account_id: AccountId) -> Result<()> {
+        delete_account_impl(ctx)
     }
 
     pub fn add_identity(
         ctx: Context<AddIdentity>,
-        account_id: String,
+        account_id: AccountId,
         identity_with_permissions: IdentityWithPermissions,
     ) -> Result<()> {
         add_identity_impl(ctx, account_id, identity_with_permissions)
@@ -132,7 +136,7 @@ pub mod solana_aa {
 
     pub fn remove_identity(
         ctx: Context<RemoveIdentity>,
-        account_id: String,
+        account_id: AccountId,
         identity: Identity,
     ) -> Result<()> {
         remove_identity_impl(ctx, account_id, identity)
