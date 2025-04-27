@@ -5,13 +5,10 @@ import { assert } from "chai";
 import { confirmTransaction, logComputeUnitsUsed } from "../utils/solana";
 import { toBytes } from "viem";
 import { PublicKey } from "@solana/web3.js";
-import litesvm from "litesvm";
 
 // Constants for comparison
-const ETH_PUBLIC_KEY = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
-const WEBAUTHN_KEY_ID = "0x123456789abcdef";
-
-const ETH_PUBLIC_KEY_2 = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92264";
+const ETH_PUBLIC_KEY = "0x71C7656EC7ab88b098defB751B7401B5f6d8976F";
+const ETH_PUBLIC_KEY_2 = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
 
 const ETHEREUM_IDENTITY_WITH_PERMISSIONS = {
   identity: {
@@ -55,7 +52,7 @@ const findAccountManagerPDA = (programId: PublicKey) => {
   );
 };
 
-describe.only("Accounts", () => {
+describe("Accounts", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const connection = anchor.getProvider().connection;
   const program = anchor.workspace.solanaAa as Program<SolanaAa>;
@@ -115,7 +112,7 @@ describe.only("Accounts", () => {
     }
   });
 
-  it("Can create an account with Ethereum identity", async () => {
+  it("can create an account with Ethereum identity", async () => {
     const signature = await program.methods
       .createAccount(ETHEREUM_IDENTITY_WITH_PERMISSIONS)
       .rpc();
