@@ -19,6 +19,8 @@ declare_id!("2PYNfKSoM7rFJeMuvEidASxgpdPAXYascVDmH6jpBa7o");
 #[program]
 pub mod solana_aa {
 
+    use crate::types::transaction::transaction::Transaction;
+
     use super::*;
 
     pub fn init_contract(ctx: Context<InitContract>) -> Result<()> {
