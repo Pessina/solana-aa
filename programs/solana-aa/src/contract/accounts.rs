@@ -5,6 +5,9 @@ use crate::types::{
 };
 use anchor_lang::prelude::*;
 
+const ABSTRACT_ACCOUNT_SEED: &[u8] = b"abstract_account";
+const ACCOUNT_MANAGER_SEED: &[u8] = b"account_manager";
+
 #[derive(Accounts)]
 #[instruction(account_id: AccountId)]
 pub struct DeleteAccount<'info> {
@@ -13,14 +16,14 @@ pub struct DeleteAccount<'info> {
 
     #[account(
         mut,
-        seeds = [b"account_manager"],
+        seeds = [ACCOUNT_MANAGER_SEED],
         bump,
     )]
     pub account_manager: Account<'info, AccountManager>,
 
     #[account(
         mut,
-        seeds = [b"account", account_id.to_le_bytes().as_ref()],
+        seeds = [ABSTRACT_ACCOUNT_SEED, account_id.to_le_bytes().as_ref()],
         bump,
         close = signer
     )]
@@ -45,7 +48,7 @@ pub struct CreateAccount<'info> {
 
     #[account(
         mut,
-        seeds = [b"account_manager"],
+        seeds = [ACCOUNT_MANAGER_SEED],
         bump,
     )]
     pub account_manager: Account<'info, AccountManager>,
@@ -54,7 +57,7 @@ pub struct CreateAccount<'info> {
         init_if_needed,
         payer = signer,
         space = AbstractAccount::initial_size(&identity_with_permissions),
-        seeds = [b"account", account_manager.next_account_id.to_le_bytes().as_ref()],
+        seeds = [ABSTRACT_ACCOUNT_SEED, account_manager.next_account_id.to_le_bytes().as_ref()],
         bump,
     )]
     pub abstract_account: Account<'info, AbstractAccount>,
@@ -81,7 +84,7 @@ pub struct AddIdentity<'info> {
     pub signer: Signer<'info>,
     #[account(
         mut,
-        seeds = [b"account", account_id.to_le_bytes().as_ref()],
+        seeds = [ABSTRACT_ACCOUNT_SEED, account_id.to_le_bytes().as_ref()],
         bump,
         realloc = abstract_account.to_account_info().data_len() + identity_with_permissions.byte_size(),
         realloc::payer = signer,
@@ -109,7 +112,7 @@ pub struct RemoveIdentity<'info> {
     pub signer: Signer<'info>,
     #[account(
         mut,
-        seeds = [b"account", account_id.to_le_bytes().as_ref()],
+        seeds = [ABSTRACT_ACCOUNT_SEED, account_id.to_le_bytes().as_ref()],
         bump,
         // TODO: Throw proper error
         realloc = abstract_account.to_account_info().data_len() - abstract_account.find_identity(&identity).expect("Identity not found").byte_size(),

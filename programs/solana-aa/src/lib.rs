@@ -7,12 +7,10 @@ mod types;
 use crate::contract::accounts::*;
 use crate::contract::auth::secp256k1_keccak256::*;
 use crate::contract::auth::secp256r1_sha256::*;
-use crate::contract::close::*;
-use crate::contract::init::*;
+use crate::contract::contract_lifecycle::*;
 use crate::contract::transaction_buffer::*;
 use crate::types::account::AccountId;
 use crate::types::identity::*;
-use crate::types::transaction::transaction::Transaction;
 
 declare_id!("2PYNfKSoM7rFJeMuvEidASxgpdPAXYascVDmH6jpBa7o");
 

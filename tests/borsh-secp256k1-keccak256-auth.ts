@@ -17,7 +17,7 @@ import {
 import { keccak256, toBytes } from "viem";
 import { expect } from "chai";
 import * as _ from "lodash";
-import { normalize } from "../utils/utils";
+import { normalizeObject } from "../utils/utils";
 
 const PRIVATE_KEY =
   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as const;
@@ -103,8 +103,8 @@ describe("Ethereum Signature Verification", () => {
       transaction
     );
 
-    const normalizedOriginal = normalize(transaction);
-    const normalizedDeserialized = normalize(deserializedTransaction);
+    const normalizedOriginal = normalizeObject(transaction);
+    const normalizedDeserialized = normalizeObject(deserializedTransaction);
 
     expect(normalizedDeserialized).to.deep.equal(normalizedOriginal);
   });
@@ -120,8 +120,8 @@ describe("Ethereum Signature Verification", () => {
       transaction
     );
 
-    const normalizedOriginal = normalize(transaction);
-    const normalizedDeserialized = normalize(deserializedTransaction);
+    const normalizedOriginal = normalizeObject(transaction);
+    const normalizedDeserialized = normalizeObject(deserializedTransaction);
 
     expect(normalizedDeserialized).to.deep.equal(normalizedOriginal);
   });
@@ -143,8 +143,8 @@ describe("Ethereum Signature Verification", () => {
       transaction
     );
 
-    const normalizedOriginal = normalize(transaction);
-    const normalizedDeserialized = normalize(deserializedTransaction);
+    const normalizedOriginal = normalizeObject(transaction);
+    const normalizedDeserialized = normalizeObject(deserializedTransaction);
 
     expect(normalizedDeserialized).to.deep.equal(normalizedOriginal);
   });
@@ -173,8 +173,8 @@ describe("Ethereum Signature Verification", () => {
       transaction
     );
 
-    const normalizedOriginal = normalize(transaction);
-    const normalizedDeserialized = normalize(deserializedTransaction);
+    const normalizedOriginal = normalizeObject(transaction);
+    const normalizedDeserialized = normalizeObject(deserializedTransaction);
 
     expect(normalizedDeserialized).to.deep.equal(normalizedOriginal);
   });

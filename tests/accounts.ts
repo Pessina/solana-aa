@@ -3,27 +3,31 @@ import { BN, Program } from "@coral-xyz/anchor";
 import { SolanaAa } from "../target/types/solana_aa";
 import { assert } from "chai";
 import { confirmTransaction, logComputeUnitsUsed } from "../utils/solana";
-import { toBytes } from "viem";
+import { Address, toBytes } from "viem";
 import { PublicKey } from "@solana/web3.js";
+import {
+  ABSTRACT_ACCOUNT_SEED,
+  ACCOUNT_MANAGER_SEED,
+} from "../utils/constants";
 
-const ETH_PUBLIC_KEY = "0x71C7656EC7ab88b098defB751B7401B5f6d8976F";
-const ETH_PUBLIC_KEY_2 = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
-const ETH_PUBLIC_KEY_3 = "0x90F79bf6EB2c4f870365E785982E1f101E93b906";
-const ETH_PUBLIC_KEY_4 = "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65";
-const ETH_PUBLIC_KEY_5 = "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc";
-const ETH_PUBLIC_KEY_6 = "0x976EA74026E726554dB657fA54763abd0C3a0aa9";
+const ETH_ADDRESS_KEY = "0x71C7656EC7ab88b098defB751B7401B5f6d8976F";
+const ETH_ADDRESS_KEY_2 = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
+const ETH_ADDRESS_KEY_3 = "0x90F79bf6EB2c4f870365E785982E1f101E93b906";
+const ETH_ADDRESS_KEY_4 = "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65";
+const ETH_ADDRESS_KEY_5 = "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc";
+const ETH_ADDRESS_KEY_6 = "0x976EA74026E726554dB657fA54763abd0C3a0aa9";
 
 type Permissions = {
   enableActAs: boolean;
 } | null;
 
-const buildEthereumIdentity = (publicKey: string, permissions: Permissions) => {
+const buildEthereumIdentity = (address: Address, permissions: Permissions) => {
   return {
     identity: {
       wallet: {
         "0": {
           ethereum: {
-            "0": Array.from(toBytes(publicKey)),
+            "0": Array.from(toBytes(address)),
           },
         },
       },
@@ -33,47 +37,44 @@ const buildEthereumIdentity = (publicKey: string, permissions: Permissions) => {
 };
 
 const ETHEREUM_IDENTITY_WITH_PERMISSIONS = buildEthereumIdentity(
-  ETH_PUBLIC_KEY,
+  ETH_ADDRESS_KEY,
   null
 );
 
 const ETHEREUM_IDENTITY_WITH_PERMISSIONS_2 = buildEthereumIdentity(
-  ETH_PUBLIC_KEY_2,
+  ETH_ADDRESS_KEY_2,
   { enableActAs: true }
 );
 
 const ETHEREUM_IDENTITY_WITH_PERMISSIONS_3 = buildEthereumIdentity(
-  ETH_PUBLIC_KEY_3,
+  ETH_ADDRESS_KEY_3,
   { enableActAs: false }
 );
 
 const ETHEREUM_IDENTITY_WITH_PERMISSIONS_4 = buildEthereumIdentity(
-  ETH_PUBLIC_KEY_4,
+  ETH_ADDRESS_KEY_4,
   { enableActAs: false }
 );
 
 const ETHEREUM_IDENTITY_WITH_PERMISSIONS_5 = buildEthereumIdentity(
-  ETH_PUBLIC_KEY_5,
+  ETH_ADDRESS_KEY_5,
   { enableActAs: true }
 );
 
 const ETHEREUM_IDENTITY_WITH_PERMISSIONS_6 = buildEthereumIdentity(
-  ETH_PUBLIC_KEY_6,
+  ETH_ADDRESS_KEY_6,
   null
 );
 
-const findAccountPDA = (accountId: BN, programId: PublicKey) => {
+const findAbstractAccountPDA = (accountId: BN, programId: PublicKey) => {
   return PublicKey.findProgramAddressSync(
-    [Buffer.from("account"), accountId.toArrayLike(Buffer, "le", 8)],
+    [ABSTRACT_ACCOUNT_SEED, accountId.toArrayLike(Buffer, "le", 8)],
     programId
   );
 };
 
 const findAccountManagerPDA = (programId: PublicKey) => {
-  return PublicKey.findProgramAddressSync(
-    [Buffer.from("account_manager")],
-    programId
-  );
+  return PublicKey.findProgramAddressSync([ACCOUNT_MANAGER_SEED], programId);
 };
 
 describe("Accounts", () => {
@@ -99,7 +100,10 @@ describe("Accounts", () => {
         const nextAccountId = accountManagerInfo.nextAccountId;
 
         for (let i = 0; i <= nextAccountId.toNumber(); i++) {
-          const [accountPDA] = findAccountPDA(new BN(i), program.programId);
+          const [accountPDA] = findAbstractAccountPDA(
+            new BN(i),
+            program.programId
+          );
 
           try {
             const accountInfo = await connection.getAccountInfo(accountPDA);
@@ -143,7 +147,7 @@ describe("Accounts", () => {
 
     await confirmTransaction(connection, signature);
 
-    const [accountPDA] = findAccountPDA(new BN(0), program.programId);
+    const [accountPDA] = findAbstractAccountPDA(new BN(0), program.programId);
 
     const accountInfo = await program.account.abstractAccount.fetch(accountPDA);
 
@@ -164,7 +168,7 @@ describe("Accounts", () => {
     assert.isDefined(wallet.ethereum, "Wallet type should be ethereum");
     assert.deepEqual(
       wallet.ethereum[0],
-      Array.from(toBytes(ETH_PUBLIC_KEY)),
+      Array.from(toBytes(ETH_ADDRESS_KEY)),
       "Public key should match"
     );
   });
@@ -182,7 +186,7 @@ describe("Accounts", () => {
 
     await confirmTransaction(connection, addSignature);
 
-    const [accountPDA] = findAccountPDA(new BN(0), program.programId);
+    const [accountPDA] = findAbstractAccountPDA(new BN(0), program.programId);
 
     const accountInfo = await program.account.abstractAccount.fetch(accountPDA);
 
@@ -196,7 +200,7 @@ describe("Accounts", () => {
       (id) =>
         id.identity.wallet &&
         Array.from(id.identity.wallet[0].ethereum[0]).toString() ===
-          Array.from(toBytes(ETH_PUBLIC_KEY)).toString()
+          Array.from(toBytes(ETH_ADDRESS_KEY)).toString()
     );
 
     assert.isDefined(
@@ -205,7 +209,7 @@ describe("Accounts", () => {
     );
     assert.deepEqual(
       firstEthereumIdentity?.identity.wallet?.[0].ethereum?.[0],
-      Array.from(toBytes(ETH_PUBLIC_KEY)),
+      Array.from(toBytes(ETH_ADDRESS_KEY)),
       "First Ethereum public key should match"
     );
 
@@ -213,7 +217,7 @@ describe("Accounts", () => {
       (id) =>
         id.identity.wallet &&
         Array.from(id.identity.wallet[0].ethereum[0]).toString() ===
-          Array.from(toBytes(ETH_PUBLIC_KEY_2)).toString()
+          Array.from(toBytes(ETH_ADDRESS_KEY_2)).toString()
     );
 
     assert.isDefined(
@@ -222,7 +226,7 @@ describe("Accounts", () => {
     );
     assert.deepEqual(
       secondEthereumIdentity?.identity.wallet?.[0].ethereum?.[0],
-      Array.from(toBytes(ETH_PUBLIC_KEY_2)),
+      Array.from(toBytes(ETH_ADDRESS_KEY_2)),
       "Second Ethereum public key should match"
     );
   });
@@ -240,7 +244,7 @@ describe("Accounts", () => {
 
     await confirmTransaction(connection, addSignature);
 
-    const [accountPDA] = findAccountPDA(new BN(0), program.programId);
+    const [accountPDA] = findAbstractAccountPDA(new BN(0), program.programId);
 
     let accountInfo = await program.account.abstractAccount.fetch(accountPDA);
     assert.strictEqual(
@@ -269,7 +273,7 @@ describe("Accounts", () => {
     );
     assert.deepEqual(
       remainingIdentityWithPermissions.identity.wallet[0].ethereum[0],
-      Array.from(toBytes(ETH_PUBLIC_KEY_2)),
+      Array.from(toBytes(ETH_ADDRESS_KEY_2)),
       "Ethereum public key should match"
     );
   });
@@ -289,7 +293,7 @@ describe("Accounts", () => {
 
       await confirmTransaction(connection, signature);
 
-      const [accountPDA] = findAccountPDA(new BN(i), program.programId);
+      const [accountPDA] = findAbstractAccountPDA(new BN(i), program.programId);
       const accountInfo = await program.account.abstractAccount
         .fetch(accountPDA)
         .catch(() => {
@@ -347,7 +351,7 @@ describe("Accounts", () => {
 
       await confirmTransaction(connection, signature);
 
-      const [accountPDA] = findAccountPDA(new BN(i), program.programId);
+      const [accountPDA] = findAbstractAccountPDA(new BN(i), program.programId);
 
       const accountInfo = await program.account.abstractAccount
         .fetch(accountPDA)

@@ -1,10 +1,5 @@
-import {
-  privateKeyToAccount,
-  signMessage,
-  sign,
-  serializeSignature,
-} from "viem/accounts";
-import { ByteArray, Hex, toHex } from "viem";
+import { privateKeyToAccount, sign, serializeSignature } from "viem/accounts";
+import { Hex } from "viem";
 
 export async function signWithEthereum({
   hash,

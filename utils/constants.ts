@@ -11,3 +11,6 @@ export const SOLANA_PRE_COMPILED_ERRORS = {
   INVALID_DATA_OFFSETS: "0x3",
   INVALID_INSTRUCTION_DATA_SIZE: "0x4",
 };
+
+export const ABSTRACT_ACCOUNT_SEED = Buffer.from("abstract_account");
+export const ACCOUNT_MANAGER_SEED = Buffer.from("account_manager");
