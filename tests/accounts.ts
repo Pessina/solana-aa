@@ -9,6 +9,11 @@ import {
   ABSTRACT_ACCOUNT_SEED,
   ACCOUNT_MANAGER_SEED,
 } from "../utils/constants";
+import {
+  cleanUpProgramState,
+  findAbstractAccountPDA,
+  findAccountManagerPDA,
+} from "../utils/program";
 
 const ETH_ADDRESS_KEY = "0x71C7656EC7ab88b098defB751B7401B5f6d8976F";
 const ETH_ADDRESS_KEY_2 = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
@@ -66,17 +71,6 @@ const ETHEREUM_IDENTITY_WITH_PERMISSIONS_6 = buildEthereumIdentity(
   null
 );
 
-const findAbstractAccountPDA = (accountId: BN, programId: PublicKey) => {
-  return PublicKey.findProgramAddressSync(
-    [ABSTRACT_ACCOUNT_SEED, accountId.toArrayLike(Buffer, "le", 8)],
-    programId
-  );
-};
-
-const findAccountManagerPDA = (programId: PublicKey) => {
-  return PublicKey.findProgramAddressSync([ACCOUNT_MANAGER_SEED], programId);
-};
-
 describe("Accounts", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const connection = anchor.getProvider().connection;
@@ -84,60 +78,7 @@ describe("Accounts", () => {
   const provider = anchor.getProvider() as anchor.AnchorProvider;
 
   beforeEach(async () => {
-    try {
-      const [accountManagerPDA] = findAccountManagerPDA(program.programId);
-      let accountManagerInfo;
-
-      try {
-        accountManagerInfo = await program.account.accountManager.fetch(
-          accountManagerPDA
-        );
-      } catch (error) {
-        console.log("Account manager doesn't exist yet");
-      }
-
-      if (accountManagerInfo) {
-        const nextAccountId = accountManagerInfo.nextAccountId;
-
-        for (let i = 0; i <= nextAccountId.toNumber(); i++) {
-          const [accountPDA] = findAbstractAccountPDA(
-            new BN(i),
-            program.programId
-          );
-
-          try {
-            const accountInfo = await connection.getAccountInfo(accountPDA);
-
-            if (accountInfo) {
-              const signature = await program.methods
-                .deleteAccount(new BN(i))
-                .accounts({
-                  signer: provider.wallet.publicKey,
-                })
-                .rpc();
-
-              await confirmTransaction(connection, signature);
-            }
-          } catch (error) {
-            console.log(`No account with ID ${i} or error deleting it:`, error);
-          }
-        }
-
-        const closeSignature = await program.methods
-          .closeContract()
-          .accounts({
-            signer: provider.wallet.publicKey,
-          })
-          .rpc();
-
-        await confirmTransaction(connection, closeSignature);
-      }
-
-      const initSignature = await program.methods.initContract().rpc();
-      await confirmTransaction(connection, initSignature);
-    } catch (error: any) {
-      console.log("Setup error:", error.message);
-    }
+    await cleanUpProgramState(program, connection, provider);
   });
 
   it("can create an account with Ethereum identity", async () => {

@@ -1,13 +1,13 @@
 use anchor_lang::prelude::*;
 
 mod contract;
-// mod traits;
 mod types;
 
 use crate::contract::accounts::*;
-use crate::contract::auth::secp256k1_keccak256::*;
+use crate::contract::auth::ek256::*;
 use crate::contract::auth::secp256r1_sha256::*;
 use crate::contract::contract_lifecycle::*;
+use crate::contract::transaction::execute::*;
 use crate::contract::transaction_buffer::*;
 use crate::types::account::AccountId;
 use crate::types::identity::*;
@@ -77,21 +77,24 @@ pub mod solana_aa {
         close_storage_impl(ctx)
     }
 
+    // TODO: Debug code
     pub fn verify_eth(
         _ctx: Context<VerifyEthereumSignature>,
         signed_message: Vec<u8>,
         signer_compressed_public_key: String,
     ) -> Result<bool> {
-        verify_secp256k1_keccak256_impl(&_ctx, signed_message, signer_compressed_public_key)
+        verify_ek256_impl(
+            &_ctx.accounts.instructions,
+            signed_message,
+            signer_compressed_public_key,
+        )
     }
 
     // TODO: Debug code
     pub fn get_eth_data(ctx: Context<VerifyEthereumSignature>) -> Result<(String, Transaction)> {
-        let (eth_address, message) = get_secp256k1_keccak256_data_impl(&ctx)?;
+        let (eth_address, message) = get_ek256_data_impl(&ctx.accounts.instructions)?;
 
-        msg!("ETH Address: {}", hex::encode(eth_address.clone()));
         let transaction = Transaction::try_from_slice(&message).unwrap();
-        msg!("Message: {:?}", transaction);
 
         Ok((hex::encode(eth_address), transaction))
     }
@@ -141,9 +144,13 @@ pub mod solana_aa {
 
     pub fn remove_identity(
         ctx: Context<RemoveIdentity>,
-        account_id: AccountId,
+        _account_id: AccountId,
         identity: Identity,
     ) -> Result<()> {
-        remove_identity_impl(ctx, account_id, identity)
+        remove_identity_impl(ctx, identity)
+    }
+
+    pub fn execute_ek256(ctx: Context<ExecuteEk256>, _account_id: AccountId) -> Result<()> {
+        execute_ek256_impl(ctx)
     }
 }

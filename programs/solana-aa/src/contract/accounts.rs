@@ -5,9 +5,6 @@ use crate::types::{
 };
 use anchor_lang::prelude::*;
 
-const ABSTRACT_ACCOUNT_SEED: &[u8] = b"abstract_account";
-const ACCOUNT_MANAGER_SEED: &[u8] = b"account_manager";
-
 #[derive(Accounts)]
 #[instruction(account_id: AccountId)]
 pub struct DeleteAccount<'info> {
@@ -16,14 +13,14 @@ pub struct DeleteAccount<'info> {
 
     #[account(
         mut,
-        seeds = [ACCOUNT_MANAGER_SEED],
+        seeds = [b"account_manager"],
         bump,
     )]
     pub account_manager: Account<'info, AccountManager>,
 
     #[account(
         mut,
-        seeds = [ABSTRACT_ACCOUNT_SEED, account_id.to_le_bytes().as_ref()],
+        seeds = [b"abstract_account", account_id.to_le_bytes().as_ref()],
         bump,
         close = signer
     )]
@@ -48,7 +45,7 @@ pub struct CreateAccount<'info> {
 
     #[account(
         mut,
-        seeds = [ACCOUNT_MANAGER_SEED],
+        seeds = [b"account_manager"],
         bump,
     )]
     pub account_manager: Account<'info, AccountManager>,
@@ -57,7 +54,7 @@ pub struct CreateAccount<'info> {
         init_if_needed,
         payer = signer,
         space = AbstractAccount::initial_size(&identity_with_permissions),
-        seeds = [ABSTRACT_ACCOUNT_SEED, account_manager.next_account_id.to_le_bytes().as_ref()],
+        seeds = [b"abstract_account", account_manager.next_account_id.to_le_bytes().as_ref()],
         bump,
     )]
     pub abstract_account: Account<'info, AbstractAccount>,
@@ -77,6 +74,10 @@ pub fn create_account_impl(
     Ok(())
 }
 
+/*
+   We plan to use a single entry point for all transactions, we need to research how to handle realloc in a dynamic way.
+   For that we can have a realloc function or research what's the Anchor idiomatic way to handle it.
+*/
 #[derive(Accounts)]
 #[instruction(account_id: AccountId, identity_with_permissions: IdentityWithPermissions)]
 pub struct AddIdentity<'info> {
@@ -84,7 +85,7 @@ pub struct AddIdentity<'info> {
     pub signer: Signer<'info>,
     #[account(
         mut,
-        seeds = [ABSTRACT_ACCOUNT_SEED, account_id.to_le_bytes().as_ref()],
+        seeds = [b"abstract_account", account_id.to_le_bytes().as_ref()],
         bump,
         realloc = abstract_account.to_account_info().data_len() + identity_with_permissions.byte_size(),
         realloc::payer = signer,
@@ -112,7 +113,7 @@ pub struct RemoveIdentity<'info> {
     pub signer: Signer<'info>,
     #[account(
         mut,
-        seeds = [ABSTRACT_ACCOUNT_SEED, account_id.to_le_bytes().as_ref()],
+        seeds = [b"abstract_account", account_id.to_le_bytes().as_ref()],
         bump,
         // TODO: Throw proper error
         realloc = abstract_account.to_account_info().data_len() - abstract_account.find_identity(&identity).expect("Identity not found").byte_size(),
@@ -123,11 +124,7 @@ pub struct RemoveIdentity<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn remove_identity_impl(
-    ctx: Context<RemoveIdentity>,
-    _account_id: AccountId,
-    identity: Identity,
-) -> Result<()> {
+pub fn remove_identity_impl(ctx: Context<RemoveIdentity>, identity: Identity) -> Result<()> {
     ctx.accounts.abstract_account.remove_identity(&identity);
     Ok(())
 }

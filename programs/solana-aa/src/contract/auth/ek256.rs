@@ -4,29 +4,16 @@ use anchor_lang::solana_program::{
     sysvar::instructions::{load_current_index_checked, load_instruction_at_checked},
 };
 
-pub fn verify_secp256k1_keccak256_impl(
-    ctx: &Context<VerifyEthereumSignature>,
-    signed_message: Vec<u8>,
-    signer_eth_address: String,
-) -> Result<bool> {
-    let (eth_address, message) = get_secp256k1_keccak256_data_impl(ctx)?;
+/*
+    Utility methods to interact with the secp256k1 keccak256 pre-compiled program from Solana
 
-    let expected_eth_address =
-        hex::decode(&signer_eth_address[2..]).map_err(|_| ErrorCode::InvalidHexEncoding)?;
-    if expected_eth_address.len() != 20 {
-        return Err(ErrorCode::InvalidAddressLength.into());
-    }
+    Reference:
 
-    if eth_address != expected_eth_address.as_slice() {
-        return Err(ErrorCode::AddressMismatch.into());
-    }
+       - https://docs.rs/solana-secp256k1-program/latest/solana_secp256k1_program/
+       - https://solana.com/docs/core/programs
 
-    if message != signed_message.as_slice() {
-        return Err(ErrorCode::MessageMismatch.into());
-    }
-
-    Ok(true)
-}
+    ek256 stands for secp256k1 keccak256
+*/
 
 /// Verifies a secp256k1 signature using the Solana precompiled program
 /// and returns the Ethereum address (in hex format) and the message (as UTF-8 JSON)
@@ -50,10 +37,7 @@ pub fn verify_secp256k1_keccak256_impl(
 /// - The verification instruction is missing or invalid
 /// - The instruction data format is invalid
 /// - The signature verification fails
-pub fn get_secp256k1_keccak256_data_impl(
-    ctx: &Context<VerifyEthereumSignature>,
-) -> Result<(Vec<u8>, Vec<u8>)> {
-    let instructions_sysvar = &ctx.accounts.instructions;
+pub fn get_ek256_data_impl(instructions_sysvar: &AccountInfo<'_>) -> Result<(Vec<u8>, Vec<u8>)> {
     let current_index = load_current_index_checked(instructions_sysvar)? as usize;
     if current_index < 1 {
         return Err(ErrorCode::MissingVerificationInstruction.into());
@@ -107,6 +91,31 @@ pub fn get_secp256k1_keccak256_data_impl(
     Ok((eth_address.to_vec(), message.to_vec()))
 }
 
+// TODO: Debug code
+pub fn verify_ek256_impl(
+    instructions_sysvar: &AccountInfo<'_>,
+    signed_message: Vec<u8>,
+    signer_eth_address: String,
+) -> Result<bool> {
+    let (eth_address, message) = get_ek256_data_impl(instructions_sysvar)?;
+
+    let expected_eth_address =
+        hex::decode(&signer_eth_address[2..]).map_err(|_| ErrorCode::InvalidHexEncoding)?;
+    if expected_eth_address.len() != 20 {
+        return Err(ErrorCode::InvalidAddressLength.into());
+    }
+
+    if eth_address != expected_eth_address.as_slice() {
+        return Err(ErrorCode::AddressMismatch.into());
+    }
+
+    if message != signed_message.as_slice() {
+        return Err(ErrorCode::MessageMismatch.into());
+    }
+
+    Ok(true)
+}
+
 #[derive(Clone, Copy)]
 #[repr(C, packed)]
 pub struct Secp256k1SignatureOffsets {
@@ -135,11 +144,9 @@ impl Secp256k1SignatureOffsets {
         })
     }
 }
-
-// Define the accounts context
 #[derive(Accounts)]
 pub struct VerifyEthereumSignature<'info> {
-    /// CHECK: This is the instructions sysvar, verified by address
+    /// CHECK: Instructions sysvar, verified by address
     #[account(address = solana_program::sysvar::instructions::id())]
     pub instructions: AccountInfo<'info>,
 }
@@ -169,6 +176,4 @@ pub enum ErrorCode {
     MessageMismatch,
     #[msg("Invalid message size")]
     InvalidMessageSize,
-    #[msg("Invalid message format")]
-    InvalidMessageFormat,
 }

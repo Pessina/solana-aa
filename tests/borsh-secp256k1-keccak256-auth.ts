@@ -16,7 +16,7 @@ import {
 } from "../utils/ethereum";
 import { keccak256, toBytes } from "viem";
 import { expect } from "chai";
-import * as _ from "lodash";
+import _ from "lodash";
 import { normalizeObject } from "../utils/utils";
 
 const PRIVATE_KEY =
