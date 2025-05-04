@@ -4,6 +4,7 @@ package_manager = "yarn"
 [features]
 resolution = true
 skip-lint = false
+seeds = true
 
 [programs.localnet]
 solana_aa = "2PYNfKSoM7rFJeMuvEidASxgpdPAXYascVDmH6jpBa7o"
