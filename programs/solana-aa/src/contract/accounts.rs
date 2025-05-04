@@ -58,7 +58,7 @@ pub struct CreateAccount<'info> {
     )]
     pub account_manager: Account<'info, AccountManager>,
 
-    // Account creating can be done by anyone and it doesn't pose a security risk.
+    // Account creation can be done by anyone and it doesn't pose a security risk.
     // The user will be able to create the account but won't be able to modify it
     // or use it for malicious transactions.
     #[account(
@@ -85,10 +85,6 @@ pub fn create_account_impl(
     Ok(())
 }
 
-/*
-   We plan to use a single entry point for all transactions, we need to research how to handle realloc in a dynamic way.
-   For that we can have a realloc function or research what's the Anchor idiomatic way to handle it.
-*/
 #[derive(Accounts)]
 #[instruction(account_id: AccountId, identity_with_permissions: IdentityWithPermissions)]
 pub struct AddIdentity<'info> {
@@ -101,8 +97,6 @@ pub struct AddIdentity<'info> {
         bump,
     )]
     pub abstract_account: Account<'info, AbstractAccount>,
-
-    pub rent: Sysvar<'info, Rent>,
 
     pub system_program: Program<'info, System>,
 }
