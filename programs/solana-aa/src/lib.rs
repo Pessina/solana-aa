@@ -1,8 +1,8 @@
 use anchor_lang::prelude::*;
 
 mod contract;
+mod pda_seeds;
 mod types;
-
 use crate::contract::accounts::*;
 use crate::contract::auth::ek256::*;
 use crate::contract::auth::secp256r1_sha256::*;

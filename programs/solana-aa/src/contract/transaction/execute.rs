@@ -1,5 +1,6 @@
 use crate::{
     contract::auth::ek256::get_ek256_data_impl,
+    pda_seeds::ABSTRACT_ACCOUNT_SEED,
     types::{
         account::{AbstractAccount, AccountId},
         identity::{wallet::WalletType, Identity},
@@ -30,7 +31,7 @@ pub struct ExecuteEk256<'info> {
 
     #[account(
         mut,
-        seeds = [b"abstract_account", account_id.to_le_bytes().as_ref()],
+        seeds = [ABSTRACT_ACCOUNT_SEED, account_id.to_le_bytes().as_ref()],
         bump,
     )]
     pub abstract_account: Account<'info, AbstractAccount>,

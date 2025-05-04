@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-use crate::types::account_manager::AccountManager;
+use crate::{pda_seeds::ACCOUNT_MANAGER_SEED, types::account_manager::AccountManager};
 
 #[derive(Accounts)]
 pub struct CloseContract<'info> {
@@ -9,7 +9,7 @@ pub struct CloseContract<'info> {
 
     #[account(
         mut,
-        seeds = [b"account_manager"],
+        seeds = [ACCOUNT_MANAGER_SEED],
         bump,
         close = signer
     )]
@@ -27,7 +27,7 @@ pub struct InitContract<'info> {
         init_if_needed,
         payer = signer,
         space = AccountManager::INIT_SIZE,
-        seeds = [b"account_manager"],
+        seeds = [ACCOUNT_MANAGER_SEED],
         bump,
     )]
     pub account_manager: Account<'info, AccountManager>,

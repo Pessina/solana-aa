@@ -1,16 +1,14 @@
 import * as anchor from "@coral-xyz/anchor";
 import { signWithEthereum } from "../utils/secp256k1-signer";
 import { borshUtils, Transaction } from "../borsh";
-import { confirmTransaction, getTxInfo } from "../utils/solana";
+import { confirmTransaction } from "../utils/solana";
 import {
   parseEthereumSignature,
   ethereumAddressToBytes,
   createSecp256k1VerificationInstruction,
 } from "../utils/ethereum";
 import { keccak256, toBytes } from "viem";
-import { expect } from "chai";
 import _ from "lodash";
-import { normalizeObject } from "../utils/utils";
 import { cleanUpProgramState, findAbstractAccountPDA } from "../utils/program";
 import { buildEthereumIdentity } from "../utils/identity";
 import { privateKeyToAccount } from "viem/accounts";
@@ -21,7 +19,7 @@ const PRIVATE_KEY =
   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as const;
 const ETH_ADDRESS = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
 
-describe.only("Execute Ek256", () => {
+describe("Execute Ek256", () => {
   const provider = anchor.getProvider() as anchor.AnchorProvider;
   const program = anchor.workspace.solanaAa as anchor.Program<SolanaAa>;
   anchor.setProvider(anchor.AnchorProvider.env());
