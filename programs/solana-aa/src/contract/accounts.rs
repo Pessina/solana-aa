@@ -5,6 +5,7 @@ use crate::{
         account_manager::AccountManager,
         identity::*,
     },
+    utils::pda::{close_pda, realloc_account},
 };
 use anchor_lang::prelude::*;
 
@@ -25,7 +26,6 @@ pub struct DeleteAccount<'info> {
         mut,
         seeds = [ABSTRACT_ACCOUNT_SEED, account_id.to_le_bytes().as_ref()],
         bump,
-        close = signer
     )]
     pub abstract_account: Account<'info, AbstractAccount>,
 
@@ -36,6 +36,11 @@ pub fn delete_account_impl(ctx: Context<DeleteAccount>) -> Result<()> {
     ctx.accounts
         .account_manager
         .update_max_nonce(ctx.accounts.abstract_account.nonce);
+
+    close_pda(
+        &ctx.accounts.abstract_account.to_account_info(),
+        &ctx.accounts.signer.to_account_info(),
+    )?;
 
     Ok(())
 }
@@ -53,6 +58,9 @@ pub struct CreateAccount<'info> {
     )]
     pub account_manager: Account<'info, AccountManager>,
 
+    // Account creating can be done by anyone and it doesn't pose a security risk.
+    // The user will be able to create the account but won't be able to modify it
+    // or use it for malicious transactions.
     #[account(
         init_if_needed,
         payer = signer,
@@ -86,15 +94,16 @@ pub fn create_account_impl(
 pub struct AddIdentity<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
+
     #[account(
         mut,
         seeds = [ABSTRACT_ACCOUNT_SEED, account_id.to_le_bytes().as_ref()],
         bump,
-        realloc = abstract_account.to_account_info().data_len() + identity_with_permissions.byte_size(),
-        realloc::payer = signer,
-        realloc::zero = false
     )]
     pub abstract_account: Account<'info, AbstractAccount>,
+
+    pub rent: Sysvar<'info, Rent>,
+
     pub system_program: Program<'info, System>,
 }
 
@@ -103,9 +112,20 @@ pub fn add_identity_impl(
     _account_id: AccountId,
     identity_with_permissions: IdentityWithPermissions,
 ) -> Result<()> {
+    let new_size = ctx.accounts.abstract_account.to_account_info().data_len()
+        + identity_with_permissions.byte_size();
+
+    realloc_account(
+        &mut ctx.accounts.abstract_account.to_account_info(),
+        new_size,
+        &mut ctx.accounts.signer.to_account_info(),
+        &ctx.accounts.system_program.to_account_info(),
+    )?;
+
     ctx.accounts
         .abstract_account
         .add_identity(identity_with_permissions);
+
     Ok(())
 }
 
@@ -114,20 +134,39 @@ pub fn add_identity_impl(
 pub struct RemoveIdentity<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
+
     #[account(
         mut,
         seeds = [ABSTRACT_ACCOUNT_SEED, account_id.to_le_bytes().as_ref()],
         bump,
-        // TODO: Throw proper error
-        realloc = abstract_account.to_account_info().data_len() - abstract_account.find_identity(&identity).expect("Identity not found").byte_size(),
-        realloc::payer = signer,
-        realloc::zero = false
     )]
     pub abstract_account: Account<'info, AbstractAccount>,
+
     pub system_program: Program<'info, System>,
 }
 
 pub fn remove_identity_impl(ctx: Context<RemoveIdentity>, identity: Identity) -> Result<()> {
+    let identity_size = match ctx.accounts.abstract_account.find_identity(&identity) {
+        Some(identity_with_permissions) => identity_with_permissions.byte_size(),
+        None => return Err(ErrorCode::IdentityNotFound.into()),
+    };
+
     ctx.accounts.abstract_account.remove_identity(&identity);
+
+    let new_size = ctx.accounts.abstract_account.to_account_info().data_len() - identity_size;
+
+    realloc_account(
+        &mut ctx.accounts.abstract_account.to_account_info(),
+        new_size,
+        &mut ctx.accounts.signer.to_account_info(),
+        &ctx.accounts.system_program.to_account_info(),
+    )?;
+
     Ok(())
+}
+
+#[error_code]
+pub enum ErrorCode {
+    #[msg("Identity not found")]
+    IdentityNotFound,
 }
