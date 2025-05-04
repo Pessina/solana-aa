@@ -21,13 +21,13 @@ pub fn execute_ek256_impl(ctx: Context<ExecuteEk256>) -> Result<()> {
 
     is_transaction_authorized(abstract_account, &identity, &transaction)?;
 
-    match transaction.action {
-        Action::RemoveAccount => todo!(),
-        Action::AddIdentity(identity_with_permissions) => {
-            todo!()
-        }
-        Action::RemoveIdentity(identity) => todo!(),
-    }
+    // match transaction.action {
+    //     Action::RemoveAccount => todo!(),
+    //     Action::AddIdentity(identity_with_permissions) => {
+    //         todo!()
+    //     }
+    //     Action::RemoveIdentity(identity) => todo!(),
+    // }
 
     Ok(())
 }
