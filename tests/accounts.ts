@@ -95,9 +95,16 @@ describe("Accounts", () => {
         provider.wallet.publicKey
       );
 
-      const signature = await program.methods.createAccount(accounts[i]).rpc();
+      const signature = await program.methods
+        .createAccount(new BN(i), accounts[i])
+        .rpc();
 
       await confirmTransaction(connection, signature);
+
+      await logComputeUnitsUsed({
+        txSignature: signature,
+        memo: `Create account ${i}`,
+      });
 
       const signerBalanceAfter = await connection.getBalance(
         provider.wallet.publicKey
@@ -170,6 +177,11 @@ describe("Accounts", () => {
 
       await confirmTransaction(connection, signature);
 
+      await logComputeUnitsUsed({
+        txSignature: signature,
+        memo: `Delete account ${i}`,
+      });
+
       const signerBalanceAfter = await connection.getBalance(
         provider.wallet.publicKey
       );
@@ -213,7 +225,7 @@ describe("Accounts", () => {
     );
 
     const createSignature = await program.methods
-      .createAccount(ETHEREUM_IDENTITY_WITH_PERMISSIONS)
+      .createAccount(new BN(0), ETHEREUM_IDENTITY_WITH_PERMISSIONS)
       .rpc();
 
     await confirmTransaction(connection, createSignature);
@@ -243,6 +255,11 @@ describe("Accounts", () => {
         .rpc();
 
       await confirmTransaction(connection, addSignature);
+
+      await logComputeUnitsUsed({
+        txSignature: addSignature,
+        memo: `Add identity ${i}`,
+      });
 
       const balanceAfterAdd = await connection.getBalance(
         provider.wallet.publicKey
@@ -275,6 +292,11 @@ describe("Accounts", () => {
         .rpc();
 
       await confirmTransaction(connection, removeSignature);
+
+      await logComputeUnitsUsed({
+        txSignature: removeSignature,
+        memo: `Remove identity ${i}`,
+      });
 
       const balanceAfterRemove = await connection.getBalance(
         provider.wallet.publicKey

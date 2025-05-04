@@ -50,15 +50,12 @@ impl AbstractAccount {
         self.identities.iter().find(|i| &i.identity == identity)
     }
 
-    pub fn initial_size(identity_with_permissions: &IdentityWithPermissions) -> usize {
+    pub fn initial_size() -> usize {
         const PDA_DISCRIMINATOR_SIZE: usize = 8;
         const ACCOUNT_ID_SIZE: usize = 8;
         const NONCE_SIZE: usize = 16;
         const VEC_SIZE: usize = 4;
 
-        let mut size = PDA_DISCRIMINATOR_SIZE + ACCOUNT_ID_SIZE + NONCE_SIZE + VEC_SIZE;
-        size += identity_with_permissions.byte_size();
-
-        size
+        PDA_DISCRIMINATOR_SIZE + ACCOUNT_ID_SIZE + NONCE_SIZE + VEC_SIZE
     }
 }

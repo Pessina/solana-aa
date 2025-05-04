@@ -126,26 +126,30 @@ pub mod solana_aa {
     }
 
     pub fn create_account(
-        ctx: Context<CreateAccount>,
+        ctx: Context<AbstractAccountOperation>,
+        account_id: AccountId,
         identity_with_permissions: IdentityWithPermissions,
     ) -> Result<()> {
-        create_account_impl(ctx, identity_with_permissions)
+        create_account_impl(ctx, account_id, identity_with_permissions)
     }
 
-    pub fn delete_account(ctx: Context<DeleteAccount>, _account_id: AccountId) -> Result<()> {
+    pub fn delete_account(
+        ctx: Context<AbstractAccountOperation>,
+        _account_id: AccountId,
+    ) -> Result<()> {
         delete_account_impl(ctx)
     }
 
     pub fn add_identity(
-        ctx: Context<AddIdentity>,
-        account_id: AccountId,
+        ctx: Context<AbstractAccountOperation>,
+        _account_id: AccountId,
         identity_with_permissions: IdentityWithPermissions,
     ) -> Result<()> {
-        add_identity_impl(ctx, account_id, identity_with_permissions)
+        add_identity_impl(ctx, identity_with_permissions)
     }
 
     pub fn remove_identity(
-        ctx: Context<RemoveIdentity>,
+        ctx: Context<AbstractAccountOperation>,
         _account_id: AccountId,
         identity: Identity,
     ) -> Result<()> {
