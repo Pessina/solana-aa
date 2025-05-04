@@ -4,7 +4,7 @@ use crate::{
     types::{
         account::{AbstractAccount, AccountId},
         identity::{wallet::WalletType, Identity},
-        transaction::transaction::Transaction,
+        transaction::transaction::{Action, Transaction},
     },
 };
 use anchor_lang::prelude::*;
@@ -17,8 +17,17 @@ pub fn execute_ek256_impl(ctx: Context<ExecuteEk256>) -> Result<()> {
 
     let transaction = Transaction::try_from_slice(&signed_message)?;
     let identity = Identity::Wallet(WalletType::Ethereum(eth_address.try_into().unwrap()));
+    let abstract_account = &mut ctx.accounts.abstract_account;
 
-    is_transaction_authorized(&mut ctx.accounts.abstract_account, &identity, &transaction)?;
+    is_transaction_authorized(abstract_account, &identity, &transaction)?;
+
+    match transaction.action {
+        Action::RemoveAccount => todo!(),
+        Action::AddIdentity(identity_with_permissions) => {
+            todo!()
+        }
+        Action::RemoveIdentity(identity) => todo!(),
+    }
 
     Ok(())
 }

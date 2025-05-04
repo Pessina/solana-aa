@@ -312,4 +312,159 @@ describe("Accounts", () => {
       "Next account ID should still be 6 after deleting all accounts"
     );
   });
+
+  it("can add multiple identities to one account and then remove them", async () => {
+    const createSignature = await program.methods
+      .createAccount(ETHEREUM_IDENTITY_WITH_PERMISSIONS)
+      .rpc();
+
+    await confirmTransaction(connection, createSignature);
+
+    const addSignature1 = await program.methods
+      .addIdentity(new BN(0), ETHEREUM_IDENTITY_WITH_PERMISSIONS_2)
+      .rpc();
+
+    await confirmTransaction(connection, addSignature1);
+
+    const addSignature2 = await program.methods
+      .addIdentity(new BN(0), ETHEREUM_IDENTITY_WITH_PERMISSIONS_3)
+      .rpc();
+
+    await confirmTransaction(connection, addSignature2);
+
+    const addSignature3 = await program.methods
+      .addIdentity(new BN(0), ETHEREUM_IDENTITY_WITH_PERMISSIONS_4)
+      .rpc();
+
+    await confirmTransaction(connection, addSignature3);
+
+    const [accountPDA] = findAbstractAccountPDA(new BN(0), program.programId);
+    let accountInfo = await program.account.abstractAccount.fetch(accountPDA);
+
+    assert.strictEqual(
+      accountInfo.identities.length,
+      4,
+      "Should have 4 identities"
+    );
+
+    const removeSignature1 = await program.methods
+      .removeIdentity(new BN(0), {
+        wallet: {
+          "0": {
+            ethereum: {
+              "0": Array.from(toBytes(ETH_ADDRESS_KEY_3)),
+            },
+          },
+        },
+      })
+      .rpc();
+
+    await confirmTransaction(connection, removeSignature1);
+
+    accountInfo = await program.account.abstractAccount.fetch(accountPDA);
+
+    assert.strictEqual(
+      accountInfo.identities.length,
+      3,
+      "Should have 3 identities after removing one"
+    );
+
+    const removeSignature2 = await program.methods
+      .removeIdentity(new BN(0), {
+        wallet: {
+          "0": {
+            ethereum: {
+              "0": Array.from(toBytes(ETH_ADDRESS_KEY_4)),
+            },
+          },
+        },
+      })
+      .rpc();
+
+    await confirmTransaction(connection, removeSignature2);
+
+    accountInfo = await program.account.abstractAccount.fetch(accountPDA);
+    assert.strictEqual(
+      accountInfo.identities.length,
+      2,
+      "Should have 2 identities after removing two"
+    );
+
+    const removeSignature3 = await program.methods
+      .removeIdentity(new BN(0), {
+        wallet: {
+          "0": {
+            ethereum: {
+              "0": Array.from(toBytes(ETH_ADDRESS_KEY_2)),
+            },
+          },
+        },
+      })
+      .rpc();
+
+    await confirmTransaction(connection, removeSignature3);
+
+    accountInfo = await program.account.abstractAccount.fetch(accountPDA);
+    assert.strictEqual(
+      accountInfo.identities.length,
+      1,
+      "Should have 1 identity after removing three"
+    );
+
+    const remainingIdentity = accountInfo.identities[0];
+    assert.deepEqual(
+      Array.from(remainingIdentity.identity?.wallet?.[0].ethereum?.[0] ?? []),
+      Array.from(toBytes(ETH_ADDRESS_KEY)),
+      "Only the original identity should remain"
+    );
+  });
+
+  it("can delete an account after adding identities", async () => {
+    const createSignature = await program.methods
+      .createAccount(ETHEREUM_IDENTITY_WITH_PERMISSIONS_5)
+      .rpc();
+
+    await confirmTransaction(connection, createSignature);
+
+    const addSignature = await program.methods
+      .addIdentity(new BN(0), ETHEREUM_IDENTITY_WITH_PERMISSIONS_6)
+      .rpc();
+
+    await confirmTransaction(connection, addSignature);
+
+    const [accountPDA] = findAbstractAccountPDA(new BN(0), program.programId);
+    const accountInfo = await program.account.abstractAccount.fetch(accountPDA);
+
+    assert.strictEqual(
+      accountInfo.identities.length,
+      2,
+      "Should have 2 identities before deletion"
+    );
+
+    const deleteSignature = await program.methods
+      .deleteAccount(new BN(0))
+      .accounts({
+        signer: provider.wallet.publicKey,
+      })
+      .rpc();
+
+    await confirmTransaction(connection, deleteSignature);
+
+    const deletedAccountInfo = await program.account.abstractAccount
+      .fetch(accountPDA)
+      .catch(() => null);
+
+    assert.isNull(deletedAccountInfo, "Account should have been deleted");
+
+    const [accountManagerPDA] = findAccountManagerPDA(program.programId);
+    const accountManagerInfo = await program.account.accountManager.fetch(
+      accountManagerPDA
+    );
+
+    assert.strictEqual(
+      accountManagerInfo.nextAccountId.toNumber(),
+      1,
+      "Next account ID should still be 1 after deleting the account"
+    );
+  });
 });
