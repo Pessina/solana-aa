@@ -1,4 +1,4 @@
-use super::account::{AccountId, Nonce};
+use super::account::AccountId;
 use anchor_lang::prelude::*;
 
 #[account]
@@ -13,38 +13,21 @@ pub struct AccountManager {
     */
     pub next_account_id: AccountId,
 
-    /*
-    Tracks the maximum nonce of the accounts deleted.
-
-    When an account is deleted and recreated, its nonce would normally reset to 0.
-    This would allow previously used signatures (with nonces 0 through N) to be
-    replayed on the new account.
-
-    By tracking the global maximum nonce, we ensure that even recreated accounts
-    start with the max_nonce avoiding replay attacks.
-    */
-    pub max_nonce: Nonce,
+    // PDA discriminator to optimize Anchor account validation
+    pub bump: u8,
 }
 
 impl AccountManager {
-    pub const INIT_SIZE: usize = 8 + 8 + 16; // discriminator + account_id + max_nonce
+    const PDA_DISCRIMINATOR_SIZE: usize = 8;
+    const ACCOUNT_ID_SIZE: usize = 8;
+    const BUMP_SIZE: usize = 1;
 
-    pub fn new() -> Self {
-        Self {
-            next_account_id: 0,
-            max_nonce: 0,
-        }
-    }
+    pub const INIT_SIZE: usize =
+        Self::PDA_DISCRIMINATOR_SIZE + Self::ACCOUNT_ID_SIZE + Self::BUMP_SIZE;
 
     pub fn increment_next_account_id(&mut self) -> AccountId {
         let old_next_account_id = self.next_account_id;
         self.next_account_id = self.next_account_id.saturating_add(1);
         old_next_account_id
-    }
-
-    pub fn update_max_nonce(&mut self, new_max_nonce: Nonce) -> Nonce {
-        let old_max_nonce = self.max_nonce;
-        self.max_nonce = new_max_nonce;
-        old_max_nonce
     }
 }
