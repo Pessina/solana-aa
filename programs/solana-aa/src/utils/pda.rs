@@ -10,15 +10,15 @@ use anchor_lang::solana_program::{program::invoke, system_instruction};
 /// * `account` - The account to reallocate
 /// * `new_size` - The new size in bytes for the account's data
 /// * `payer` - The account that will pay for additional space if needed
-/// * `system_program` - The system program account
+/// * `system_program` - The system program account info for CPI
 ///
 /// # Returns
 ///
 /// * `Result<()>` - Success or an error if funds are insufficient or reallocation fails
 pub fn realloc_account<'info>(
-    account: &mut AccountInfo<'info>,
+    account: &AccountInfo<'info>,
     new_size: usize,
-    payer: &mut AccountInfo<'info>,
+    payer: &AccountInfo<'info>,
     system_program: &AccountInfo<'info>,
 ) -> Result<()> {
     let rent = Rent::get()?;
@@ -44,8 +44,8 @@ pub fn realloc_account<'info>(
 
     if new_minimum_balance < current_minimum_balance {
         let lamports_diff = current_minimum_balance.saturating_sub(new_minimum_balance);
-        **account.try_borrow_mut_lamports()? -= lamports_diff;
-        **payer.try_borrow_mut_lamports()? += lamports_diff;
+        **account.try_borrow_mut_lamports()? = account.lamports().saturating_sub(lamports_diff);
+        **payer.try_borrow_mut_lamports()? = payer.lamports().saturating_add(lamports_diff);
     }
 
     Ok(())

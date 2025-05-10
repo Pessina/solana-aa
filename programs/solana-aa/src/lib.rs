@@ -136,7 +136,11 @@ pub mod solana_aa {
         ctx: Context<AbstractAccountOperation>,
         _account_id: AccountId,
     ) -> Result<()> {
-        delete_account_impl(ctx)
+        delete_account_impl(AbstractAccountOperationArgs {
+            abstract_account: &mut ctx.accounts.abstract_account,
+            signer_info: ctx.accounts.signer.to_account_info(),
+            system_program_info: ctx.accounts.system_program.to_account_info(),
+        })
     }
 
     pub fn add_identity(
@@ -144,15 +148,28 @@ pub mod solana_aa {
         _account_id: AccountId,
         identity_with_permissions: IdentityWithPermissions,
     ) -> Result<()> {
-        add_identity_impl(ctx, identity_with_permissions)
+        add_identity_impl(
+            AbstractAccountOperationArgs {
+                abstract_account: &mut ctx.accounts.abstract_account,
+                signer_info: ctx.accounts.signer.to_account_info(),
+                system_program_info: ctx.accounts.system_program.to_account_info(),
+            },
+            identity_with_permissions,
+        )
     }
-
     pub fn remove_identity(
         ctx: Context<AbstractAccountOperation>,
         _account_id: AccountId,
         identity: Identity,
     ) -> Result<()> {
-        remove_identity_impl(ctx, identity)
+        remove_identity_impl(
+            AbstractAccountOperationArgs {
+                abstract_account: &mut ctx.accounts.abstract_account,
+                signer_info: ctx.accounts.signer.to_account_info(),
+                system_program_info: ctx.accounts.system_program.to_account_info(),
+            },
+            identity,
+        )
     }
 
     pub fn execute_ek256(ctx: Context<ExecuteEk256>, _account_id: AccountId) -> Result<()> {

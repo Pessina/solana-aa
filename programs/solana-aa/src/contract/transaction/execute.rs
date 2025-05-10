@@ -1,5 +1,11 @@
 use crate::{
-    contract::auth::ek256::get_ek256_data_impl,
+    contract::{
+        accounts::{
+            add_identity_impl, delete_account_impl, remove_identity_impl,
+            AbstractAccountOperationArgs,
+        },
+        auth::ek256::get_ek256_data_impl,
+    },
     pda_seeds::ABSTRACT_ACCOUNT_SEED,
     types::{
         account::{AbstractAccount, AccountId},
@@ -12,26 +18,6 @@ use anchor_lang::solana_program;
 
 use super::validation::is_transaction_authorized;
 
-pub fn execute_ek256_impl(ctx: Context<ExecuteEk256>) -> Result<()> {
-    let (eth_address, signed_message) = get_ek256_data_impl(&ctx.accounts.instructions)?;
-
-    let transaction = Transaction::try_from_slice(&signed_message)?;
-    let identity = Identity::Wallet(WalletType::Ethereum(eth_address.try_into().unwrap()));
-    let abstract_account = &mut ctx.accounts.abstract_account;
-
-    is_transaction_authorized(abstract_account, &identity, &transaction)?;
-
-    // match transaction.action {
-    //     Action::RemoveAccount => todo!(),
-    //     Action::AddIdentity(identity_with_permissions) => {
-    //         todo!()
-    //     }
-    //     Action::RemoveIdentity(identity) => todo!(),
-    // }
-
-    Ok(())
-}
-
 #[derive(Accounts)]
 #[instruction(account_id: AccountId)]
 pub struct ExecuteEk256<'info> {
@@ -41,7 +27,7 @@ pub struct ExecuteEk256<'info> {
     #[account(
         mut,
         seeds = [ABSTRACT_ACCOUNT_SEED, account_id.to_le_bytes().as_ref()],
-        bump,
+        bump = abstract_account.bump,
     )]
     pub abstract_account: Account<'info, AbstractAccount>,
 
@@ -50,4 +36,44 @@ pub struct ExecuteEk256<'info> {
     /// CHECK: Instructions sysvar, verified by address
     #[account(address = solana_program::sysvar::instructions::id())]
     pub instructions: AccountInfo<'info>,
+}
+
+pub fn execute_ek256_impl(ctx: Context<ExecuteEk256>) -> Result<()> {
+    let (eth_address, signed_message) = get_ek256_data_impl(&ctx.accounts.instructions)?;
+
+    let transaction = Transaction::try_from_slice(&signed_message)?;
+    let identity = Identity::Wallet(WalletType::Ethereum(eth_address.try_into().unwrap()));
+    let abstract_account = &mut ctx.accounts.abstract_account;
+
+    is_transaction_authorized(abstract_account, &identity, &transaction)?;
+
+    match transaction.action {
+        Action::RemoveAccount => delete_account_impl(AbstractAccountOperationArgs {
+            abstract_account: &mut ctx.accounts.abstract_account,
+            signer_info: ctx.accounts.signer.to_account_info(),
+            system_program_info: ctx.accounts.system_program.to_account_info(),
+        })?,
+        Action::AddIdentity(identity_with_permissions) => {
+            add_identity_impl(
+                AbstractAccountOperationArgs {
+                    abstract_account: &mut ctx.accounts.abstract_account,
+                    signer_info: ctx.accounts.signer.to_account_info(),
+                    system_program_info: ctx.accounts.system_program.to_account_info(),
+                },
+                identity_with_permissions,
+            )?;
+        }
+        Action::RemoveIdentity(identity) => {
+            remove_identity_impl(
+                AbstractAccountOperationArgs {
+                    abstract_account: &mut ctx.accounts.abstract_account,
+                    signer_info: ctx.accounts.signer.to_account_info(),
+                    system_program_info: ctx.accounts.system_program.to_account_info(),
+                },
+                identity,
+            )?;
+        }
+    }
+
+    Ok(())
 }
