@@ -34,7 +34,7 @@ pub fn is_transaction_authorized(
         return Err(ErrorCode::AccountIdMismatch.into());
     }
 
-    abstract_account.nonce += 1;
+    abstract_account.increment_nonce();
 
     // TODO: Include verification for act_as
 
