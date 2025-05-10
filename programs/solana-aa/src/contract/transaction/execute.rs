@@ -41,33 +41,24 @@ pub fn execute_ek256_impl(ctx: Context<ExecuteEk256>) -> Result<()> {
 
     is_transaction_authorized(abstract_account, &identity, &transaction)?;
 
+    let abstract_account_operation_accounts = AbstractAccountOperationAccounts {
+        abstract_account: &mut ctx.accounts.abstract_account,
+        signer_info: ctx.accounts.signer.to_account_info(),
+        system_program_info: ctx.accounts.system_program.to_account_info(),
+    };
+
     match transaction.action {
         Action::RemoveAccount => {
-            AbstractAccount::close_account(AbstractAccountOperationAccounts {
-                abstract_account: &mut ctx.accounts.abstract_account,
-                signer_info: ctx.accounts.signer.to_account_info(),
-                system_program_info: ctx.accounts.system_program.to_account_info(),
-            })?
+            AbstractAccount::close_account(abstract_account_operation_accounts)?
         }
         Action::AddIdentity(identity_with_permissions) => {
             AbstractAccount::add_identity(
-                AbstractAccountOperationAccounts {
-                    abstract_account: &mut ctx.accounts.abstract_account,
-                    signer_info: ctx.accounts.signer.to_account_info(),
-                    system_program_info: ctx.accounts.system_program.to_account_info(),
-                },
+                abstract_account_operation_accounts,
                 identity_with_permissions,
             )?;
         }
         Action::RemoveIdentity(identity) => {
-            AbstractAccount::remove_identity(
-                AbstractAccountOperationAccounts {
-                    abstract_account: &mut ctx.accounts.abstract_account,
-                    signer_info: ctx.accounts.signer.to_account_info(),
-                    system_program_info: ctx.accounts.system_program.to_account_info(),
-                },
-                &identity,
-            )?;
+            AbstractAccount::remove_identity(abstract_account_operation_accounts, &identity)?;
         }
     }
 
