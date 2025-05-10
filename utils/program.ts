@@ -74,6 +74,7 @@ export const cleanUpProgramState = async (
     }
 
     const initSignature = await program.methods.initContract().rpc();
+
     await confirmTransaction(connection, initSignature);
   } catch (error: any) {
     console.log("Setup error:", error.message);

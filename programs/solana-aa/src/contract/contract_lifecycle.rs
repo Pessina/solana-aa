@@ -10,7 +10,7 @@ pub struct CloseContract<'info> {
     #[account(
         mut,
         seeds = [ACCOUNT_MANAGER_SEED],
-        bump,
+        bump = account_manager.bump,
         close = signer
     )]
     pub account_manager: Account<'info, AccountManager>,
@@ -24,7 +24,7 @@ pub struct InitContract<'info> {
     pub signer: Signer<'info>,
 
     #[account(
-        init_if_needed,
+        init,
         payer = signer,
         space = AccountManager::INIT_SIZE,
         seeds = [ACCOUNT_MANAGER_SEED],
@@ -36,8 +36,8 @@ pub struct InitContract<'info> {
 }
 
 pub fn init_contract_impl(ctx: Context<InitContract>) -> Result<()> {
-    ctx.accounts.account_manager.max_nonce = 0;
     ctx.accounts.account_manager.next_account_id = 0;
+    ctx.accounts.account_manager.bump = ctx.bumps.account_manager;
 
     Ok(())
 }

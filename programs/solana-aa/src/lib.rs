@@ -126,11 +126,10 @@ pub mod solana_aa {
     }
 
     pub fn create_account(
-        ctx: Context<AbstractAccountOperation>,
-        account_id: AccountId,
+        ctx: Context<CreateAbstractAccount>,
         identity_with_permissions: IdentityWithPermissions,
     ) -> Result<()> {
-        create_account_impl(ctx, account_id, identity_with_permissions)
+        create_account_impl(ctx, identity_with_permissions)
     }
 
     pub fn delete_account(

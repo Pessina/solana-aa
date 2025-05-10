@@ -95,9 +95,7 @@ describe("Accounts", () => {
         provider.wallet.publicKey
       );
 
-      const signature = await program.methods
-        .createAccount(new BN(i), accounts[i])
-        .rpc();
+      const signature = await program.methods.createAccount(accounts[i]).rpc();
 
       await confirmTransaction(connection, signature);
 
@@ -225,7 +223,7 @@ describe("Accounts", () => {
     );
 
     const createSignature = await program.methods
-      .createAccount(new BN(0), ETHEREUM_IDENTITY_WITH_PERMISSIONS)
+      .createAccount(ETHEREUM_IDENTITY_WITH_PERMISSIONS)
       .rpc();
 
     await confirmTransaction(connection, createSignature);
