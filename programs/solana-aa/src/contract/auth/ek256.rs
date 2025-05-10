@@ -15,28 +15,6 @@ use anchor_lang::solana_program::{
     ek256 stands for secp256k1 keccak256
 */
 
-/// Verifies a secp256k1 signature using the Solana precompiled program
-/// and returns the Ethereum address (in hex format) and the message (as UTF-8 JSON)
-///
-/// This function extracts the signature, Ethereum address, and message from the
-/// secp256k1 program instruction and verifies that the signature is valid.
-///
-/// # Arguments
-///
-/// * `ctx` - The context containing the instructions account
-///
-/// # Returns
-///
-/// A tuple containing:
-/// - The Ethereum address as a hex string with "0x" prefix
-/// - The message as a UTF-8 decoded string
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - The verification instruction is missing or invalid
-/// - The instruction data format is invalid
-/// - The signature verification fails
 pub fn get_ek256_data_impl(instructions_sysvar: &AccountInfo<'_>) -> Result<(Vec<u8>, Vec<u8>)> {
     let current_index = load_current_index_checked(instructions_sysvar)? as usize;
     if current_index < 1 {

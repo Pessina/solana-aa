@@ -39,17 +39,14 @@ pub fn get_secp256r1_sha256_data_impl(
 ) -> Result<(Vec<u8>, Vec<u8>)> {
     let instructions_sysvar = &ctx.accounts.instructions;
 
-    // Check for a previous instruction
     let current_index = load_current_index_checked(instructions_sysvar)?;
     if current_index < 1 {
         return Err(ErrorCode::MissingVerificationInstruction.into());
     }
 
-    // Load the previous instruction
     let verification_instruction =
         load_instruction_at_checked((current_index - 1) as usize, instructions_sysvar)?;
 
-    // Verify it's a secp256r1 verification instruction
     let secp256r1_program_id =
         Pubkey::from_str("Secp256r1SigVerify1111111111111111111111111").unwrap();
     if verification_instruction.program_id != secp256r1_program_id {
@@ -61,13 +58,11 @@ pub fn get_secp256r1_sha256_data_impl(
         return Err(ErrorCode::InvalidInstructionData.into());
     }
 
-    // Check number of signatures
     let num_signatures = data[0] as usize;
     if num_signatures != 1 {
         return Err(ErrorCode::MultipleSignaturesNotSupported.into());
     }
 
-    // Parse offsets
     let offsets_start = 2;
     let offsets_end = offsets_start + 14;
     if data.len() < offsets_end {
@@ -78,7 +73,6 @@ pub fn get_secp256r1_sha256_data_impl(
     let offsets: &Secp256r1SignatureOffsets =
         bytemuck::try_from_bytes(offsets_data).map_err(|_| ErrorCode::InvalidOffsets)?;
 
-    // Ensure data is in the current instruction
     if offsets.signature_instruction_index != u16::MAX
         || offsets.public_key_instruction_index != u16::MAX
         || offsets.message_instruction_index != u16::MAX
@@ -86,7 +80,6 @@ pub fn get_secp256r1_sha256_data_impl(
         return Err(ErrorCode::DataInOtherInstructionsNotSupported.into());
     }
 
-    // Extract and verify public key
     let pubkey_start = offsets.public_key_offset as usize;
     let pubkey_end = pubkey_start + 33;
     if pubkey_end > data.len() {
@@ -94,7 +87,6 @@ pub fn get_secp256r1_sha256_data_impl(
     }
     let pubkey_bytes = &data[pubkey_start..pubkey_end];
 
-    // Extract message
     let message_start = offsets.message_data_offset as usize;
     let message_end = message_start + offsets.message_data_size as usize;
     if message_end > data.len() {
