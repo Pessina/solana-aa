@@ -58,6 +58,7 @@ pub fn create_account_impl(
     Ok(())
 }
 
+// TODO: This context should not exist, as the methods bellow are not directly callable without authentication
 #[derive(Accounts)]
 #[instruction(account_id: AccountId)]
 pub struct AbstractAccountOperation<'info> {
@@ -74,55 +75,69 @@ pub struct AbstractAccountOperation<'info> {
     pub system_program: Program<'info, System>,
 }
 
+// TODO: As the methods bellow are the minimum necessary steps to perform the AbstractAccount operations,
+// we should move them to the account.rs file where we defined the internal methods on the AbstractAccount
+
+pub struct AbstractAccountOperationArgs<'a, 'info> {
+    pub abstract_account: &'a mut Account<'info, AbstractAccount>,
+    pub signer_info: AccountInfo<'info>,
+    pub system_program_info: AccountInfo<'info>,
+}
+
 pub fn add_identity_impl(
-    ctx: Context<AbstractAccountOperation>,
+    args: AbstractAccountOperationArgs,
     identity_with_permissions: IdentityWithPermissions,
 ) -> Result<()> {
-    let new_size = ctx.accounts.abstract_account.to_account_info().data_len()
-        + identity_with_permissions.byte_size();
+    // Get account info and calculate new size
+    let account_info = args.abstract_account.to_account_info();
+    let current_size = account_info.data_len();
+    let identity_size = identity_with_permissions.byte_size();
+    let new_size = current_size + identity_size;
 
+    // Reallocate the account using our utility function
     realloc_account(
-        &mut ctx.accounts.abstract_account.to_account_info(),
+        &account_info,
         new_size,
-        &mut ctx.accounts.signer.to_account_info(),
-        &ctx.accounts.system_program.to_account_info(),
+        &args.signer_info,
+        &args.system_program_info,
     )?;
 
-    ctx.accounts
-        .abstract_account
+    // Add the identity after reallocation is complete
+    args.abstract_account
         .add_identity(identity_with_permissions);
 
     Ok(())
 }
 
-pub fn remove_identity_impl(
-    ctx: Context<AbstractAccountOperation>,
-    identity: Identity,
-) -> Result<()> {
-    let identity_size = match ctx.accounts.abstract_account.find_identity(&identity) {
+pub fn remove_identity_impl(args: AbstractAccountOperationArgs, identity: Identity) -> Result<()> {
+    // Find the identity and get its size
+    let identity_size = match args.abstract_account.find_identity(&identity) {
         Some(identity_with_permissions) => identity_with_permissions.byte_size(),
         None => return Err(ErrorCode::IdentityNotFound.into()),
     };
 
-    ctx.accounts.abstract_account.remove_identity(&identity);
+    // Remove the identity from the account
+    args.abstract_account.remove_identity(&identity);
 
-    let new_size = ctx.accounts.abstract_account.to_account_info().data_len() - identity_size;
+    // Calculate new size and reallocate
+    let account_info = args.abstract_account.to_account_info();
+    let current_size = account_info.data_len();
+    let new_size = current_size - identity_size;
 
+    // Reallocate the account using our utility function
     realloc_account(
-        &mut ctx.accounts.abstract_account.to_account_info(),
+        &account_info,
         new_size,
-        &mut ctx.accounts.signer.to_account_info(),
-        &ctx.accounts.system_program.to_account_info(),
+        &args.signer_info,
+        &args.system_program_info,
     )?;
 
     Ok(())
 }
 
-pub fn delete_account_impl(ctx: Context<AbstractAccountOperation>) -> Result<()> {
-    close_pda(
-        &ctx.accounts.abstract_account.to_account_info(),
-        &ctx.accounts.signer.to_account_info(),
-    )?;
+pub fn delete_account_impl(args: AbstractAccountOperationArgs) -> Result<()> {
+    // Close the PDA using our utility function
+    close_pda(&args.abstract_account.to_account_info(), &args.signer_info)?;
 
     Ok(())
 }

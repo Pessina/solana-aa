@@ -30,6 +30,10 @@ pub fn is_transaction_authorized(
         return Err(ErrorCode::NonceMismatch.into());
     }
 
+    if !abstract_account.account_id.eq(&transaction.account_id) {
+        return Err(ErrorCode::AccountIdMismatch.into());
+    }
+
     abstract_account.nonce += 1;
 
     // TODO: Include verification for act_as
@@ -45,4 +49,6 @@ pub enum ErrorCode {
     IdentityNotFound,
     #[msg("Nonce mismatch")]
     NonceMismatch,
+    #[msg("Account ID mismatch")]
+    AccountIdMismatch,
 }
