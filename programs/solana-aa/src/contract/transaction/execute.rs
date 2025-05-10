@@ -32,14 +32,14 @@ pub struct ExecuteEk256<'info> {
     pub instructions: AccountInfo<'info>,
 }
 
-pub fn execute_ek256_impl(ctx: Context<ExecuteEk256>) -> Result<()> {
+pub fn execute_ek256_impl(ctx: Context<ExecuteEk256>, account_id: AccountId) -> Result<()> {
     let (eth_address, signed_message) = get_ek256_data_impl(&ctx.accounts.instructions)?;
 
     let transaction = Transaction::try_from_slice(&signed_message)?;
     let identity = Identity::Wallet(WalletType::Ethereum(eth_address.try_into().unwrap()));
     let abstract_account = &mut ctx.accounts.abstract_account;
 
-    is_transaction_authorized(abstract_account, &identity, &transaction)?;
+    is_transaction_authorized(abstract_account, account_id, &identity, &transaction)?;
 
     let abstract_account_operation_accounts = AbstractAccountOperationAccounts {
         abstract_account: &mut ctx.accounts.abstract_account,

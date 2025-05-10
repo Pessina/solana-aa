@@ -19,8 +19,6 @@ pub type Nonce = u128;
 */
 #[account]
 pub struct AbstractAccount {
-    // Account identifier stored as a number for compactness and enable sequential account discovery.
-    pub account_id: AccountId,
     pub nonce: Nonce,
 
     // TODO: Benchmark other data structures; BtreeMap, HashMap, etc.
@@ -34,16 +32,12 @@ pub struct AbstractAccount {
 
 impl AbstractAccount {
     const PDA_DISCRIMINATOR_SIZE: usize = 8;
-    const ACCOUNT_ID_SIZE: usize = 8;
     const NONCE_SIZE: usize = 16;
     const VEC_SIZE: usize = 4;
     const BUMP_SIZE: usize = 1;
 
-    pub const INIT_SIZE: usize = Self::PDA_DISCRIMINATOR_SIZE
-        + Self::ACCOUNT_ID_SIZE
-        + Self::NONCE_SIZE
-        + Self::VEC_SIZE
-        + Self::BUMP_SIZE;
+    pub const INIT_SIZE: usize =
+        Self::PDA_DISCRIMINATOR_SIZE + Self::NONCE_SIZE + Self::VEC_SIZE + Self::BUMP_SIZE;
 
     pub fn increment_nonce(&mut self) {
         self.nonce = self.nonce.saturating_add(1);

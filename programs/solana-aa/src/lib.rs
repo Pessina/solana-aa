@@ -170,7 +170,7 @@ pub mod solana_aa {
         )
     }
 
-    pub fn execute_ek256(ctx: Context<ExecuteEk256>, _account_id: AccountId) -> Result<()> {
-        execute_ek256_impl(ctx)
+    pub fn execute_ek256(ctx: Context<ExecuteEk256>, account_id: AccountId) -> Result<()> {
+        execute_ek256_impl(ctx, account_id)
     }
 }

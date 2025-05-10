@@ -1,7 +1,9 @@
 use anchor_lang::prelude::*;
 
 use crate::types::{
-    account::AbstractAccount, identity::Identity, transaction::transaction::Transaction,
+    account::{AbstractAccount, AccountId},
+    identity::Identity,
+    transaction::transaction::Transaction,
 };
 
 /// Validates the user operation against the abstract account
@@ -19,6 +21,7 @@ use crate::types::{
 /// * `Result<()>` - Returns Ok() if validation succeeds, or the error code if validation fails
 pub fn is_transaction_authorized(
     abstract_account: &mut AbstractAccount,
+    account_id: AccountId,
     identity: &Identity,
     transaction: &Transaction,
 ) -> Result<()> {
@@ -30,7 +33,7 @@ pub fn is_transaction_authorized(
         return Err(ErrorCode::NonceMismatch.into());
     }
 
-    if !abstract_account.account_id.eq(&transaction.account_id) {
+    if !account_id.eq(&transaction.account_id) {
         return Err(ErrorCode::AccountIdMismatch.into());
     }
 
