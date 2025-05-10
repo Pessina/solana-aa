@@ -1,14 +1,8 @@
 use crate::{
-    contract::{
-        accounts::{
-            add_identity_impl, delete_account_impl, remove_identity_impl,
-            AbstractAccountOperationArgs,
-        },
-        auth::ek256::get_ek256_data_impl,
-    },
+    contract::auth::ek256::get_ek256_data_impl,
     pda_seeds::ABSTRACT_ACCOUNT_SEED,
     types::{
-        account::{AbstractAccount, AccountId},
+        account::{AbstractAccount, AbstractAccountOperationAccounts, AccountId},
         identity::{wallet::WalletType, Identity},
         transaction::transaction::{Action, Transaction},
     },
@@ -48,14 +42,16 @@ pub fn execute_ek256_impl(ctx: Context<ExecuteEk256>) -> Result<()> {
     is_transaction_authorized(abstract_account, &identity, &transaction)?;
 
     match transaction.action {
-        Action::RemoveAccount => delete_account_impl(AbstractAccountOperationArgs {
-            abstract_account: &mut ctx.accounts.abstract_account,
-            signer_info: ctx.accounts.signer.to_account_info(),
-            system_program_info: ctx.accounts.system_program.to_account_info(),
-        })?,
+        Action::RemoveAccount => {
+            AbstractAccount::close_account(AbstractAccountOperationAccounts {
+                abstract_account: &mut ctx.accounts.abstract_account,
+                signer_info: ctx.accounts.signer.to_account_info(),
+                system_program_info: ctx.accounts.system_program.to_account_info(),
+            })?
+        }
         Action::AddIdentity(identity_with_permissions) => {
-            add_identity_impl(
-                AbstractAccountOperationArgs {
+            AbstractAccount::add_identity(
+                AbstractAccountOperationAccounts {
                     abstract_account: &mut ctx.accounts.abstract_account,
                     signer_info: ctx.accounts.signer.to_account_info(),
                     system_program_info: ctx.accounts.system_program.to_account_info(),
@@ -64,13 +60,13 @@ pub fn execute_ek256_impl(ctx: Context<ExecuteEk256>) -> Result<()> {
             )?;
         }
         Action::RemoveIdentity(identity) => {
-            remove_identity_impl(
-                AbstractAccountOperationArgs {
+            AbstractAccount::remove_identity(
+                AbstractAccountOperationAccounts {
                     abstract_account: &mut ctx.accounts.abstract_account,
                     signer_info: ctx.accounts.signer.to_account_info(),
                     system_program_info: ctx.accounts.system_program.to_account_info(),
                 },
-                identity,
+                &identity,
             )?;
         }
     }

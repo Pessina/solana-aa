@@ -19,7 +19,10 @@ declare_id!("2PYNfKSoM7rFJeMuvEidASxgpdPAXYascVDmH6jpBa7o");
 #[program]
 pub mod solana_aa {
 
-    use crate::types::transaction::transaction::Transaction;
+    use crate::types::{
+        account::{AbstractAccount, AbstractAccountOperationAccounts},
+        transaction::transaction::Transaction,
+    };
 
     use super::*;
 
@@ -109,15 +112,9 @@ pub mod solana_aa {
         verify_secp256r1_sha256_impl(&ctx, signed_message, signer_compressed_public_key)
     }
 
-    // TODO: Debug code
+    // TODO: debug code
     pub fn get_webauthn_data(ctx: Context<VerifyWebauthnSignature>) -> Result<(String, String)> {
         let (pubkey_bytes, message_bytes) = get_secp256r1_sha256_data_impl(&ctx)?;
-
-        msg!("Pubkey: {}", hex::encode(pubkey_bytes.clone()));
-        msg!(
-            "Message: {}",
-            String::from_utf8(message_bytes.clone()).unwrap()
-        );
 
         Ok((
             hex::encode(pubkey_bytes),
@@ -132,24 +129,23 @@ pub mod solana_aa {
         create_account_impl(ctx, identity_with_permissions)
     }
 
-    pub fn delete_account(
-        ctx: Context<AbstractAccountOperation>,
-        _account_id: AccountId,
-    ) -> Result<()> {
-        delete_account_impl(AbstractAccountOperationArgs {
+    // TODO: Debug code, will be remove as those methods need to go through auth
+    pub fn delete_account(ctx: Context<ExecuteEk256>, _account_id: AccountId) -> Result<()> {
+        AbstractAccount::close_account(AbstractAccountOperationAccounts {
             abstract_account: &mut ctx.accounts.abstract_account,
             signer_info: ctx.accounts.signer.to_account_info(),
             system_program_info: ctx.accounts.system_program.to_account_info(),
         })
     }
 
+    // TODO: Debug code, will be remove as those methods need to go through auth
     pub fn add_identity(
-        ctx: Context<AbstractAccountOperation>,
+        ctx: Context<ExecuteEk256>,
         _account_id: AccountId,
         identity_with_permissions: IdentityWithPermissions,
     ) -> Result<()> {
-        add_identity_impl(
-            AbstractAccountOperationArgs {
+        AbstractAccount::add_identity(
+            AbstractAccountOperationAccounts {
                 abstract_account: &mut ctx.accounts.abstract_account,
                 signer_info: ctx.accounts.signer.to_account_info(),
                 system_program_info: ctx.accounts.system_program.to_account_info(),
@@ -157,18 +153,20 @@ pub mod solana_aa {
             identity_with_permissions,
         )
     }
+
+    // TODO: Debug code, will be remove as those methods need to go through auth
     pub fn remove_identity(
-        ctx: Context<AbstractAccountOperation>,
+        ctx: Context<ExecuteEk256>,
         _account_id: AccountId,
         identity: Identity,
     ) -> Result<()> {
-        remove_identity_impl(
-            AbstractAccountOperationArgs {
+        AbstractAccount::remove_identity(
+            AbstractAccountOperationAccounts {
                 abstract_account: &mut ctx.accounts.abstract_account,
                 signer_info: ctx.accounts.signer.to_account_info(),
                 system_program_info: ctx.accounts.system_program.to_account_info(),
             },
-            identity,
+            &identity,
         )
     }
 
