@@ -1,6 +1,9 @@
 use anchor_lang::prelude::*;
 
-use crate::types::identity::{Identity, IdentityWithPermissions};
+use crate::types::{
+    account::AccountId,
+    identity::{Identity, IdentityWithPermissions},
+};
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct UserOp {
@@ -44,7 +47,7 @@ It's mandatory to provide it's not possible to compute from the signed data.
 */
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct Transaction {
-    pub account_id: u64, // Consider using u64 to save space
+    pub account_id: AccountId,
     pub nonce: u128,
     pub action: Action,
 }

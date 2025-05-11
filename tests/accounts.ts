@@ -9,6 +9,7 @@ import {
   findAbstractAccountPDA,
   findAccountManagerPDA,
 } from "../utils/program";
+import { buildEthereumIdentity } from "../utils/identity";
 
 const ETH_ADDRESS: Hex = "0x71C7656EC7ab88b098defB751B7401B5f6d8976F";
 const ETH_ADDRESS_2: Hex = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
@@ -20,21 +21,6 @@ const ETH_ADDRESS_6: Hex = "0x976EA74026E726554dB657fA54763abd0C3a0aa9";
 type Permissions = {
   enableActAs: boolean;
 } | null;
-
-const buildEthereumIdentity = (address: Address, permissions: Permissions) => {
-  return {
-    identity: {
-      wallet: {
-        "0": {
-          ethereum: {
-            "0": Array.from(toBytes(address)),
-          },
-        },
-      },
-    },
-    permissions,
-  };
-};
 
 const ETHEREUM_IDENTITY_WITH_PERMISSIONS = buildEthereumIdentity(
   ETH_ADDRESS,
