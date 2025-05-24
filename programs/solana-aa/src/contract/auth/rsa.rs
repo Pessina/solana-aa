@@ -60,83 +60,27 @@ const GOOGLE_RSA_PUBLIC_KEY_2: &[u8] = &[
 // Array of all Google public keys for key rotation support
 const GOOGLE_RSA_PUBLIC_KEYS: &[&[u8]] = &[GOOGLE_RSA_PUBLIC_KEY_1, GOOGLE_RSA_PUBLIC_KEY_2];
 
-/// Compact verification data structure for maximum efficiency
-/// All data should be pre-processed off-chain to minimize transaction size and compute costs
-///
-/// # Transaction Size Optimization:
-/// This struct is designed to minimize serialized size when sent to Solana:
-/// - Uses Vec<u8> for binary data (more efficient than String)
-/// - Enums use minimal representation
-/// - No redundant fields or metadata
-///
-/// # Example off-chain preprocessing (TypeScript/JavaScript):
-/// ```typescript
-/// import { createHash } from 'crypto';
-/// import * as base64url from 'base64url';
-///
-/// function prepareOidcVerification(jwtToken: string): OidcVerificationData {
-///   const [header, payload, signature] = jwtToken.split('.');
-///   
-///   // Decode header to extract algorithm and key ID
-///   const headerData = JSON.parse(base64url.decode(header));
-///   const kid = headerData.kid; // Key ID for selecting the right public key
-///   
-///   // Decode payload to extract issuer  
-///   const payloadData = JSON.parse(base64url.decode(payload));
-///   const issuer = payloadData.iss; // e.g., "https://accounts.google.com"
-///   
-///   // Determine key index from kid (requires mapping kid to array index)
-///   const keyIndex = getKeyIndexFromKid(kid, issuer); // Custom function
-///   
-///   // Construct signing input
-///   const signingInput = Buffer.from(`${header}.${payload}`, 'utf8');
-///   
-///   // Create SHA-256 hash of signing input
-///   const hash = createHash('sha256').update(signingInput).digest();
-///   
-///   // Decode signature
-///   const signatureBytes = base64url.toBuffer(signature);
-///   
-///   return {
-///     signing_input_hash: Array.from(hash),
-///     signature: Array.from(signatureBytes),
-///     provider: 'Google',
-///     key_index: keyIndex
-///   };
-/// }
-/// ```
+/// Optimized verification data structure
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct OidcVerificationData {
-    /// SHA-256 hash of the signing input (header.payload) - processed off-chain
-    /// This reduces transaction size while maintaining security
-    /// The hash is verified against the decrypted signature
+    /// SHA-256 hash of signing input (header.payload)
     pub signing_input_hash: [u8; 32],
-
-    /// Pre-decoded signature bytes (raw signature, not base64) - processed off-chain  
-    /// Must be exactly 256 bytes for 2048-bit RSA keys
+    /// RSA signature bytes (256 bytes for 2048-bit keys)
     pub signature: Vec<u8>,
-
-    /// OIDC provider identifier - determined off-chain from issuer claim
-    /// Used to select the appropriate public key array for verification
+    /// OIDC provider (Google, etc.)
     pub provider: OidcProvider,
-
-    /// Key index - specifies which public key to use from the provider's key array
-    /// Must be determined off-chain from JWT header kid field or by trying keys
-    /// This eliminates the need for on-chain key rotation loops
+    /// Key index for provider's key array
     pub key_index: u8,
 }
 
 impl OidcVerificationData {
     /// Validates the verification data structure for security
     pub fn validate(&self) -> Result<()> {
-        // Hash validation is implicit - it's always 32 bytes
-        // No additional validation needed for the hash
-
         if self.signature.is_empty() {
             return Err(error!(ErrorCode::InvalidSignatureFormat));
         }
 
-        // Validate signature length for 2048-bit RSA (256 bytes)
+        // Validate signature length for 2048-bit RSA
         if self.signature.len() != 256 {
             return Err(error!(ErrorCode::InvalidSignatureLength));
         }
@@ -159,44 +103,42 @@ pub enum OidcProvider {
     Google,
 }
 
-/// ULTRA-OPTIMIZED OIDC RSA verification using Solana native big_mod_exp
+/// OIDC RSA verification using Solana native big_mod_exp
 /// Production-ready implementation with minimal logging for maximum performance
 pub fn verify_oidc_native(verification_data: &OidcVerificationData) -> Result<bool> {
-    // Validate input data for security
     verification_data.validate()?;
 
-    // Get the specific public key based on provider and key index
+    // Get public key based on provider and key index
     let public_key_der = match verification_data.provider {
         OidcProvider::Google => GOOGLE_RSA_PUBLIC_KEYS[verification_data.key_index as usize],
     };
 
-    // Parse the DER-encoded public key to extract modulus and exponent
+    // Parse DER-encoded public key
     let public_key = RsaPublicKey::from_pkcs1_der(public_key_der)
         .map_err(|_| error!(ErrorCode::InvalidDerEncoding))?;
 
-    // Extract RSA components as byte arrays
+    // Extract RSA components
     let modulus_bytes = public_key.n().to_bytes_be();
     let exponent_bytes = public_key.e().to_bytes_be();
 
-    // SOLANA NATIVE: Perform RSA signature verification using native big_mod_exp
-    // This computes: signature^exponent mod modulus
+    // Perform RSA verification: signature^exponent mod modulus
     let decrypted_signature = big_mod_exp(
         &verification_data.signature,
         &exponent_bytes,
         &modulus_bytes,
     );
 
-    // PKCS#1 v1.5 padding validation - optimized for performance
+    // PKCS#1 v1.5 padding validation
     if decrypted_signature.len() != 256 {
         return Ok(false);
     }
 
-    // Validate PKCS#1 v1.5 structure: 0x00 0x01 [padding] 0x00 [DigestInfo]
+    // Validate structure: 0x00 0x01 [padding] 0x00 [DigestInfo]
     if decrypted_signature[0] != 0x00 || decrypted_signature[1] != 0x01 {
         return Ok(false);
     }
 
-    // Find separator (0x00) after padding
+    // Find separator after padding
     let separator_pos = decrypted_signature.iter().skip(2).position(|&x| x == 0x00);
     if separator_pos.is_none() {
         return Ok(false);
@@ -204,21 +146,21 @@ pub fn verify_oidc_native(verification_data: &OidcVerificationData) -> Result<bo
 
     let separator_index = separator_pos.unwrap() + 2;
 
-    // Verify padding bytes are all 0xFF
+    // Verify padding bytes are 0xFF
     let padding = &decrypted_signature[2..separator_index];
     if padding.is_empty() || !padding.iter().all(|&x| x == 0xFF) {
         return Ok(false);
     }
 
-    // Extract DigestInfo + hash portion
+    // Extract DigestInfo + hash
     let digest_info = &decrypted_signature[separator_index + 1..];
 
-    // Validate DigestInfo structure for SHA-256 (19 bytes + 32 bytes hash = 51 bytes)
+    // Validate DigestInfo for SHA-256 (51 bytes total)
     if digest_info.len() != 51 {
         return Ok(false);
     }
 
-    // SHA-256 DigestInfo header: 30 31 30 0d 06 09 60 86 48 01 65 03 04 02 01 05 00 04 20
+    // SHA-256 DigestInfo header
     const SHA256_DIGEST_INFO: &[u8] = &[
         0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01,
         0x05, 0x00, 0x04, 0x20,
@@ -229,7 +171,7 @@ pub fn verify_oidc_native(verification_data: &OidcVerificationData) -> Result<bo
         return Ok(false);
     }
 
-    // Extract and compare hash (constant-time comparison)
+    // Extract and compare hash (constant-time)
     let extracted_hash = &digest_info[19..51];
     let mut matches = true;
     for i in 0..32 {
@@ -243,8 +185,6 @@ pub fn verify_oidc_native(verification_data: &OidcVerificationData) -> Result<bo
 
 #[derive(Accounts)]
 pub struct VerifyOidcRsaSignature<'info> {
-    // For RSA OIDC verification, we don't need any special accounts
-    // since all verification is done on-chain using hardcoded public keys
     pub signer: Signer<'info>,
 }
 
