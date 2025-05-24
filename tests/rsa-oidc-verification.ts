@@ -37,13 +37,6 @@ function processJwtToken(token: string) {
   const payloadData = JSON.parse(Buffer.from(payloadBytes).toString("utf8"));
   const iss = payloadData.iss;
 
-  console.log("🔍 JWT Analysis:");
-  console.log(`  - Algorithm: ${alg}`);
-  console.log(`  - Key ID: ${kid}`);
-  console.log(`  - Issuer: ${iss}`);
-  console.log(`  - Subject: ${payloadData.sub}`);
-  console.log(`  - Email: ${payloadData.email}`);
-
   // Verify algorithm is RS256 (only supported algorithm)
   if (alg !== "RS256") {
     throw new Error(`Unsupported algorithm: ${alg}. Only RS256 is supported.`);
@@ -89,24 +82,10 @@ function processJwtToken(token: string) {
 function createOptimizedVerificationData(token: string) {
   const baseData = processJwtToken(token);
 
-  // For large signing inputs, we can try several optimizations:
-
-  // Option 1: Compress the signing input if it's text-based
-  const signingInputStr = baseData.signingInput.toString("utf8");
-  console.log(
-    "📝 Original signing input preview:",
-    signingInputStr.substring(0, 100) + "..."
-  );
-
-  // Option 2: Instead of sending full signing input, send its hash
-  // (Note: This would require changing the Rust code to hash the input and compare)
+  // Create SHA-256 hash of signing input instead of sending full input
   const signingInputHash = createHash("sha256")
     .update(baseData.signingInput)
     .digest();
-  console.log(
-    "🔐 SHA256 hash of signing input:",
-    signingInputHash.toString("hex")
-  );
 
   // Use hash instead of full signing input to reduce transaction size
   return {
@@ -126,61 +105,11 @@ function createOptimizedVerificationData(token: string) {
 }
 
 describe("RSA OIDC Verification", () => {
-  it("should verify Google OIDC token with optimized data transmission", async () => {
-    console.log("🧪 Testing RSA verification with optimized data");
-
-    console.log("📝 Processing JWT token off-chain with optimizations...");
+  it.only("should verify Google OIDC token with optimized data transmission", async () => {
+    // Process JWT token off-chain with optimizations
     const optimizedVerificationData =
       createOptimizedVerificationData(validToken);
     const verificationData = optimizedVerificationData;
-
-    // Log detailed data analysis
-    console.log("📊 Data Analysis:");
-    console.log(
-      `  - Signing Input: ${verificationData._metadata.signingInputSize} bytes`
-    );
-    console.log(
-      `  - Signature: ${verificationData._metadata.signatureSize} bytes`
-    );
-    console.log(
-      `  - Total core data: ${verificationData._metadata.originalSize} bytes`
-    );
-    console.log(
-      `  - Signing Input Hash: ${verificationData._metadata.signingInputHash}`
-    );
-
-    // Calculate the actual Borsh serialization size with hash optimization
-    const borshTestData = {
-      signingInputHash: verificationData.signingInputHash,
-      signature: Array.from(verificationData.signature),
-      provider: verificationData.provider,
-      keyIndex: verificationData.keyIndex,
-    };
-
-    // Estimate serialized size more accurately
-    const jsonSize = JSON.stringify(borshTestData).length;
-    const estimatedBorshSize = 32 + verificationData.signature.length + 50; // hash + signature + other fields
-
-    console.log("📏 Size Estimates:");
-    console.log(`  - JSON representation: ${jsonSize} bytes`);
-    console.log(`  - Estimated Borsh size: ${estimatedBorshSize} bytes`);
-    console.log(`  - Solana transaction limit: ~1232 bytes`);
-    console.log(
-      `  - Size reduction: ${
-        verificationData._metadata.originalSize -
-        verificationData._metadata.optimizedSize
-      } bytes`
-    );
-
-    if (estimatedBorshSize > 1200) {
-      console.warn(
-        "⚠️  WARNING: Data size may exceed Solana transaction limits!"
-      );
-    } else {
-      console.log(
-        "✅ Optimized data should fit within Solana transaction limits!"
-      );
-    }
 
     // Keep using Buffer as required by Anchor, but strip metadata before sending
     const optimizedData = {
@@ -190,15 +119,8 @@ describe("RSA OIDC Verification", () => {
       keyIndex: verificationData.keyIndex,
     };
 
-    console.log("🔧 Final data structure ready for transmission:");
-
-    console.log("🔧 Optimized data created, attempting transmission...");
-
     try {
-      console.log("🔐 Calling Solana program for RSA verification...");
-      const startTime = Date.now();
-
-      // Create compute budget instruction to increase compute units for RSA verification
+      // Call Solana program for RSA verification
       const computeBudgetInstruction = ComputeBudgetProgram.setComputeUnitLimit(
         {
           units: 100_000, // NATIVE: Much lower CU requirement (~2K-5K vs 1.4M with BigUint)
@@ -216,13 +138,11 @@ describe("RSA OIDC Verification", () => {
         });
 
       await confirmTransaction(provider.connection, txSignature);
-      const duration = Date.now() - startTime;
 
       // Get transaction info to check compute units used
       const txInfo = await getTxInfo({ txSignature });
       const computeUnitsUsed = txInfo?.meta?.computeUnitsConsumed || 0;
 
-      console.log(`⚡ Transaction completed in: ${duration}ms`);
       console.log(
         `💻 Compute units used: ${computeUnitsUsed.toLocaleString()}`
       );
@@ -236,9 +156,6 @@ describe("RSA OIDC Verification", () => {
       const decodedData = Buffer.from(returnData, "base64");
       const result = decodedData.readUInt8(0) === 1;
 
-      console.log(
-        `🎯 Verification Result: ${result ? "SUCCESS ✅" : "FAILED ❌"}`
-      );
       expect(result).to.be.true;
     } catch (error: any) {
       console.error("❌ Error details:", error);
@@ -269,9 +186,7 @@ describe("RSA OIDC Verification", () => {
     "eyJhbGciOiJSUzI1NiIsImtpZCI6Ijg5Y2UzNTk4YzQ3M2FmMWJkYTRiZmY5NWU2Yzg3MzY0NTAyMDZmYmEiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiI3Mzk5MTEwNjk3OTctaWRwMDYyODY2OTY0Z2JuZG82NjkzaDMydGdhNWN2bDEuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJhdWQiOiI3Mzk5MTEwNjk3OTctaWRwMDYyODY2OTY0Z2JuZG82NjkzaDMydGdhNWN2bDEuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJzdWIiOiIxMTc5MDI4NTUzNzMxNTc0MTAzMzAiLCJlbWFpbCI6ImZzLnBlc3NpbmFAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsIm5vbmNlIjoidGVzdF8xMjNfZmVsaXBlIiwibmJmIjoxNzM2NTIzMjM2LCJuYW1lIjoiRmVsaXBlIFBlc3NpbmEiLCJwaWN0dXJlIjoiaHR0cHM6Ly9saDMuZ29vZ2xldXNlcmNvbnRlbnQuY29tL2EvQUNnOG9jSktKYlV5QlZxQ0J2NHFWR09EU25WVGdMSFBLTjB0Vk9NSU1YVml1a2dyZC0wdGZlZFU9czk2LWMiLCJnaXZlbl9uYW1lIjoiRmVsaXBlIiwiZmFtaWx5X25hbWUiOiJQZXNzaW5hIiwiaWF0IjoxNzM2NTIzNTM2LCJleHAiOjE3MzY1MjcxMzYsImp0aSI6ImY3MjdlZjg1MGFhNzNmMDQ3ZmQwNjY5OWIwNjk3YTIwMDIzYWViYWMifQ.nlRKhlzBhHVpYejoSkH_S9ZOeAejlhvnL5u-94AzsREIhzuKroJbPp9jEHuvvki5dJozc-FzXx9lfpjT17X6PT0hJOM86QUE05RkmV9WkrVSr8trr1zbHY6dieii9tzj7c01pXsLJTa2FvTonmJAxDteVt_vsZFl7-pRWmyXKLMk4CFv9AZx20-uj5pDLuj-F5IkAk_cpXBuMJYh5PQeNBDk22d5svDTQkuwUAH5N9sssXRzDNdv92snGu4AykpmoPIJeSmc3EY-RW0TB5bAnwXH0E3keAjv84yrNYjnovYn2FRqKbTKxNxN4XUgWU_P0oRYCzckJznwz4tStaYZ2A";
 
   it.only("should successfully verify valid Google OIDC token", async () => {
-    console.log("🧪 Testing RSA verification - SUCCESS case");
-
-    console.log("📝 Processing JWT token off-chain...");
+    // Process JWT token off-chain
     const optimizedVerificationData =
       createOptimizedVerificationData(validToken);
     const verificationData = {
@@ -281,20 +196,9 @@ describe("RSA OIDC Verification", () => {
       keyIndex: optimizedVerificationData.keyIndex,
     };
 
-    console.log("✅ Processed verification data:");
-    console.log(`  - Provider: Google`);
-    console.log(`  - Key Index: ${verificationData.keyIndex}`);
-    console.log(`  - Signing Input Hash: 32 bytes`);
-    console.log(
-      `  - Signature Length: ${verificationData.signature.length} bytes`
-    );
-
-    console.log("🔐 Calling Solana program for RSA verification...");
-    const startTime = Date.now();
-
-    // Create compute budget instruction to increase compute units for RSA verification
+    // Call Solana program for RSA verification
     const computeBudgetInstruction = ComputeBudgetProgram.setComputeUnitLimit({
-      units: 1_400_000, // Increase from default 200k to 1.4M for RSA operations
+      units: 100_000, // NATIVE: Much lower CU requirement (~2K-5K vs 1.4M with BigUint)
     });
 
     const txSignature = await program.methods
@@ -304,13 +208,11 @@ describe("RSA OIDC Verification", () => {
       .rpc();
 
     await confirmTransaction(provider.connection, txSignature);
-    const duration = Date.now() - startTime;
 
     // Get transaction info to check compute units used
     const txInfo = await getTxInfo({ txSignature });
     const computeUnitsUsed = txInfo?.meta?.computeUnitsConsumed || 0;
 
-    console.log(`⚡ Transaction completed in: ${duration}ms`);
     console.log(`💻 Compute units used: ${computeUnitsUsed.toLocaleString()}`);
 
     // Get the return data
@@ -322,23 +224,16 @@ describe("RSA OIDC Verification", () => {
     const decodedData = Buffer.from(returnData, "base64");
     const result = decodedData.readUInt8(0) === 1; // Boolean is serialized as 1 byte
 
-    console.log(
-      `🎯 Verification Result: ${result ? "SUCCESS ✅" : "FAILED ❌"}`
-    );
-
     // This should succeed with the real Google token
     expect(result).to.be.true;
   });
 
   it.only("should fail verification with corrupted signature", async () => {
-    console.log("🧪 Testing RSA verification - FAILURE case");
-
-    console.log("📝 Processing JWT token off-chain...");
+    // Process JWT token off-chain
     const optimizedVerificationData =
       createOptimizedVerificationData(validToken);
 
     // Corrupt the signature to make verification fail
-    console.log("💥 Corrupting signature to force failure...");
     const corruptedSignature = Buffer.from(optimizedVerificationData.signature);
     corruptedSignature[0] = (corruptedSignature[0] + 1) % 256;
 
@@ -349,20 +244,9 @@ describe("RSA OIDC Verification", () => {
       keyIndex: optimizedVerificationData.keyIndex,
     };
 
-    console.log("✅ Processed verification data (with corrupted signature):");
-    console.log(`  - Provider: Google`);
-    console.log(`  - Key Index: ${verificationData.keyIndex}`);
-    console.log(`  - Signing Input Hash: 32 bytes`);
-    console.log(
-      `  - Signature Length: ${verificationData.signature.length} bytes`
-    );
-
-    console.log("🔐 Calling Solana program for RSA verification...");
-    const startTime = Date.now();
-
-    // Create compute budget instruction to increase compute units for RSA verification
+    // Call Solana program for RSA verification
     const computeBudgetInstruction = ComputeBudgetProgram.setComputeUnitLimit({
-      units: 1_400_000, // Increase from default 200k to 1.4M for RSA operations
+      units: 100_000, // NATIVE: Much lower CU requirement
     });
 
     const txSignature = await program.methods
@@ -372,13 +256,11 @@ describe("RSA OIDC Verification", () => {
       .rpc();
 
     await confirmTransaction(provider.connection, txSignature);
-    const duration = Date.now() - startTime;
 
     // Get transaction info to check compute units used
     const txInfo = await getTxInfo({ txSignature });
     const computeUnitsUsed = txInfo?.meta?.computeUnitsConsumed || 0;
 
-    console.log(`⚡ Transaction completed in: ${duration}ms`);
     console.log(`💻 Compute units used: ${computeUnitsUsed.toLocaleString()}`);
 
     // Get the return data
@@ -390,23 +272,16 @@ describe("RSA OIDC Verification", () => {
     const decodedData = Buffer.from(returnData, "base64");
     const result = decodedData.readUInt8(0) === 1; // Boolean is serialized as 1 byte
 
-    console.log(
-      `🎯 Verification Result: ${result ? "SUCCESS ✅" : "FAILED ❌"}`
-    );
-
     // This should fail with the corrupted signature
     expect(result).to.be.false;
   });
 
   it.only("should fail verification with wrong key index", async () => {
-    console.log("🧪 Testing RSA verification - WRONG KEY case");
-
-    console.log("📝 Processing JWT token off-chain...");
+    // Process JWT token off-chain
     const optimizedVerificationData =
       createOptimizedVerificationData(validToken);
 
     // Use wrong key index to make verification fail
-    console.log("🔑 Using wrong key index to force failure...");
     const originalKeyIndex = optimizedVerificationData.keyIndex;
     const wrongKeyIndex = originalKeyIndex === 0 ? 1 : 0;
 
@@ -417,22 +292,9 @@ describe("RSA OIDC Verification", () => {
       keyIndex: wrongKeyIndex,
     };
 
-    console.log("✅ Processed verification data (with wrong key index):");
-    console.log(`  - Provider: Google`);
-    console.log(
-      `  - Key Index: ${verificationData.keyIndex} (original: ${originalKeyIndex})`
-    );
-    console.log(`  - Signing Input Hash: 32 bytes`);
-    console.log(
-      `  - Signature Length: ${verificationData.signature.length} bytes`
-    );
-
-    console.log("🔐 Calling Solana program for RSA verification...");
-    const startTime = Date.now();
-
-    // Create compute budget instruction to increase compute units for RSA verification
+    // Call Solana program for RSA verification
     const computeBudgetInstruction = ComputeBudgetProgram.setComputeUnitLimit({
-      units: 1_400_000, // Increase from default 200k to 1.4M for RSA operations
+      units: 100_000, // NATIVE: Much lower CU requirement
     });
 
     const txSignature = await program.methods
@@ -442,13 +304,11 @@ describe("RSA OIDC Verification", () => {
       .rpc();
 
     await confirmTransaction(provider.connection, txSignature);
-    const duration = Date.now() - startTime;
 
     // Get transaction info to check compute units used
     const txInfo = await getTxInfo({ txSignature });
     const computeUnitsUsed = txInfo?.meta?.computeUnitsConsumed || 0;
 
-    console.log(`⚡ Transaction completed in: ${duration}ms`);
     console.log(`💻 Compute units used: ${computeUnitsUsed.toLocaleString()}`);
 
     // Get the return data
@@ -459,10 +319,6 @@ describe("RSA OIDC Verification", () => {
 
     const decodedData = Buffer.from(returnData, "base64");
     const result = decodedData.readUInt8(0) === 1; // Boolean is serialized as 1 byte
-
-    console.log(
-      `🎯 Verification Result: ${result ? "SUCCESS ✅" : "FAILED ❌"}`
-    );
 
     // This should fail with the wrong key
     expect(result).to.be.false;
