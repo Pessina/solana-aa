@@ -1,12 +1,13 @@
 use anchor_lang::prelude::*;
 
-mod contract;
+pub mod contract;
 mod pda_seeds;
 mod types;
 mod utils;
 
 use crate::contract::accounts::*;
 use crate::contract::auth::ek256::*;
+use crate::contract::auth::rsa::*;
 use crate::contract::auth::secp256r1_sha256::*;
 use crate::contract::contract_lifecycle::*;
 use crate::contract::transaction::execute::*;
@@ -120,6 +121,22 @@ pub mod solana_aa {
             hex::encode(pubkey_bytes),
             String::from_utf8(message_bytes).unwrap(),
         ))
+    }
+
+    /// OIDC RSA verification endpoint - OPTIMIZED for production use
+    /// Accepts compact pre-processed data for maximum efficiency and minimal transaction costs
+    ///
+    /// # Performance Benefits:
+    /// - Minimal transaction size (only essential verification data)
+    /// - No string parsing on-chain
+    /// - No base64 decoding on-chain  
+    /// - No JSON parsing on-chain
+    /// - Optimized compute unit usage
+    pub fn verify_oidc_rsa(
+        _ctx: Context<VerifyOidcRsaSignature>,
+        verification_data: OidcVerificationData,
+    ) -> Result<bool> {
+        crate::contract::auth::rsa::verify_oidc_compact(&verification_data)
     }
 
     pub fn create_account(
