@@ -44,6 +44,11 @@ function processJwtToken(token: string) {
   console.log(`  - Subject: ${payloadData.sub}`);
   console.log(`  - Email: ${payloadData.email}`);
 
+  // Verify algorithm is RS256 (only supported algorithm)
+  if (alg !== "RS256") {
+    throw new Error(`Unsupported algorithm: ${alg}. Only RS256 is supported.`);
+  }
+
   // Map kid to key index (Google specific)
   let keyIndex: number;
   switch (kid) {
@@ -55,22 +60,6 @@ function processJwtToken(token: string) {
       break;
     default:
       throw new Error(`Unknown kid: ${kid}`);
-  }
-
-  // Map algorithm
-  let algorithm: any;
-  switch (alg) {
-    case "RS256":
-      algorithm = { rs256: {} };
-      break;
-    case "RS384":
-      algorithm = { rs384: {} };
-      break;
-    case "RS512":
-      algorithm = { rs512: {} };
-      break;
-    default:
-      throw new Error(`Unsupported algorithm: ${alg}`);
   }
 
   // Map provider
@@ -92,7 +81,6 @@ function processJwtToken(token: string) {
     signingInput: signingInputBytes,
     signature: signatureBytes,
     provider,
-    algorithm,
     keyIndex,
   };
 }
@@ -125,7 +113,6 @@ function createOptimizedVerificationData(token: string) {
     signingInputHash: Array.from(signingInputHash), // Convert to array for Borsh serialization
     signature: baseData.signature,
     provider: baseData.provider,
-    algorithm: baseData.algorithm,
     keyIndex: baseData.keyIndex,
     // Add metadata for debugging
     _metadata: {
@@ -167,7 +154,6 @@ describe("RSA OIDC Verification", () => {
       signingInputHash: verificationData.signingInputHash,
       signature: Array.from(verificationData.signature),
       provider: verificationData.provider,
-      algorithm: verificationData.algorithm,
       keyIndex: verificationData.keyIndex,
     };
 
@@ -201,7 +187,6 @@ describe("RSA OIDC Verification", () => {
       signingInputHash: verificationData.signingInputHash,
       signature: verificationData.signature,
       provider: verificationData.provider,
-      algorithm: verificationData.algorithm,
       keyIndex: verificationData.keyIndex,
     };
 
@@ -293,13 +278,11 @@ describe("RSA OIDC Verification", () => {
       signingInputHash: optimizedVerificationData.signingInputHash,
       signature: optimizedVerificationData.signature,
       provider: optimizedVerificationData.provider,
-      algorithm: optimizedVerificationData.algorithm,
       keyIndex: optimizedVerificationData.keyIndex,
     };
 
     console.log("✅ Processed verification data:");
     console.log(`  - Provider: Google`);
-    console.log(`  - Algorithm: RS256`);
     console.log(`  - Key Index: ${verificationData.keyIndex}`);
     console.log(`  - Signing Input Hash: 32 bytes`);
     console.log(
@@ -363,13 +346,11 @@ describe("RSA OIDC Verification", () => {
       signingInputHash: optimizedVerificationData.signingInputHash,
       signature: corruptedSignature,
       provider: optimizedVerificationData.provider,
-      algorithm: optimizedVerificationData.algorithm,
       keyIndex: optimizedVerificationData.keyIndex,
     };
 
     console.log("✅ Processed verification data (with corrupted signature):");
     console.log(`  - Provider: Google`);
-    console.log(`  - Algorithm: RS256`);
     console.log(`  - Key Index: ${verificationData.keyIndex}`);
     console.log(`  - Signing Input Hash: 32 bytes`);
     console.log(
@@ -433,13 +414,11 @@ describe("RSA OIDC Verification", () => {
       signingInputHash: optimizedVerificationData.signingInputHash,
       signature: optimizedVerificationData.signature,
       provider: optimizedVerificationData.provider,
-      algorithm: optimizedVerificationData.algorithm,
       keyIndex: wrongKeyIndex,
     };
 
     console.log("✅ Processed verification data (with wrong key index):");
     console.log(`  - Provider: Google`);
-    console.log(`  - Algorithm: RS256`);
     console.log(
       `  - Key Index: ${verificationData.keyIndex} (original: ${originalKeyIndex})`
     );
