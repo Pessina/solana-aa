@@ -2,10 +2,10 @@ use anchor_lang::prelude::*;
 use rsa::pkcs1::DecodeRsaPublicKey;
 use rsa::traits::SignatureScheme;
 use rsa::{pkcs1v15::Pkcs1v15Sign, RsaPublicKey};
-use sha2::{Sha256, Sha384, Sha512};
+use sha2::Sha256;
 
-// Ring implementation kept for experimentation (commented out)
-// use ring::signature;
+// Ring-inspired optimization: Use direct scheme creation for maximum efficiency
+// This avoids any overhead from dynamic allocation or caching in no_std environment
 
 // Google's actual RSA public keys from JWKS endpoint (DER format)
 // Converted from Google's JWKS endpoint: https://www.googleapis.com/oauth2/v3/certs
@@ -58,13 +58,6 @@ const GOOGLE_RSA_PUBLIC_KEY_2: &[u8] = &[
 const GOOGLE_RSA_PUBLIC_KEYS: &[&[u8]] = &[GOOGLE_RSA_PUBLIC_KEY_1, GOOGLE_RSA_PUBLIC_KEY_2];
 
 #[derive(Debug, Clone, AnchorSerialize, AnchorDeserialize)]
-pub enum RsaAlgorithm {
-    RS256,
-    RS384,
-    RS512,
-}
-
-#[derive(Debug, Clone, AnchorSerialize, AnchorDeserialize)]
 pub enum OidcProvider {
     Google,
 }
@@ -88,7 +81,6 @@ pub enum OidcProvider {
 ///   
 ///   // Decode header to extract algorithm and key ID
 ///   const headerData = JSON.parse(base64url.decode(header));
-///   const algorithm = headerData.alg; // e.g., "RS256"
 ///   const kid = headerData.kid; // Key ID for selecting the right public key
 ///   
 ///   // Decode payload to extract issuer  
@@ -101,14 +93,16 @@ pub enum OidcProvider {
 ///   // Construct signing input
 ///   const signingInput = Buffer.from(`${header}.${payload}`, 'utf8');
 ///   
+///   // Create SHA-256 hash of signing input
+///   const hash = createHash('sha256').update(signingInput).digest();
+///   
 ///   // Decode signature
 ///   const signatureBytes = base64url.toBuffer(signature);
 ///   
 ///   return {
-///     signing_input: Array.from(signingInput),
+///     signing_input_hash: Array.from(hash),
 ///     signature: Array.from(signatureBytes),
-///     provider: issuer.includes('google') ? 'Google' : 'Microsoft',
-///     algorithm: algorithm.replace('RS', 'RS'), // RS256 -> RS256
+///     provider: 'Google',
 ///     key_index: keyIndex
 ///   };
 /// }
@@ -128,10 +122,6 @@ pub struct OidcVerificationData {
     /// Used to select the appropriate public key array for verification
     pub provider: OidcProvider,
 
-    /// RSA algorithm identifier - extracted off-chain from JWT header alg field
-    /// Determines which hash algorithm is used (SHA256, SHA384, SHA512)
-    pub algorithm: RsaAlgorithm,
-
     /// Key index - specifies which public key to use from the provider's key array
     /// Must be determined off-chain from JWT header kid field or by trying keys
     /// This eliminates the need for on-chain key rotation loops
@@ -148,12 +138,8 @@ impl OidcVerificationData {
             return Err(error!(ErrorCode::InvalidSignatureFormat));
         }
 
-        // Validate signature length based on algorithm (security check)
-        let expected_sig_len = match self.algorithm {
-            RsaAlgorithm::RS256 | RsaAlgorithm::RS384 | RsaAlgorithm::RS512 => 256, // 2048-bit RSA = 256 bytes
-        };
-
-        if self.signature.len() != expected_sig_len {
+        // Validate signature length for 2048-bit RSA (256 bytes)
+        if self.signature.len() != 256 {
             return Err(error!(ErrorCode::InvalidSignatureLength));
         }
 
@@ -170,30 +156,28 @@ impl OidcVerificationData {
     }
 }
 
-/// OPTIMIZED OIDC RSA verification - accepts compact pre-processed data
-/// This is the most efficient way to verify OIDC tokens on Solana
+/// HIGHLY OPTIMIZED OIDC RSA verification for RS256 (SHA-256) signatures
+/// This implementation uses the RSA crate for Solana BPF compatibility
 ///
 /// # Performance Benefits:
-/// - Minimal transaction size (only essential verification data)
-/// - No string parsing on-chain
-/// - No base64 decoding on-chain
-/// - No JSON parsing on-chain
-/// - Optimized compute unit usage
+/// - RSA crate: Optimized for Solana BPF target
+/// - Single algorithm support (RS256 only) - minimal branching
+/// - Direct signature verification against hash (no intermediate steps)
+/// - Minimal memory allocations
 ///
 /// # Security Critical (on-chain):
-/// - RSA signature verification using ring crate
+/// - RSA signature verification using PKCS#1 v1.5 padding
 /// - Public key selection based on provider
-/// - Algorithm validation
 /// - Signature length validation
 ///
 /// # Off-chain preprocessing required:
 /// 1. Parse JWT token (header.payload.signature)
 /// 2. Validate JWT format and structure
 /// 3. Base64url decode signature
-/// 4. Extract algorithm from header.alg field
-/// 5. Extract key ID (kid) from header and map to array index
-/// 6. Determine provider from payload.iss claim
-/// 7. Construct signing input as bytes (header + "." + payload)
+/// 4. Extract key ID (kid) from header and map to array index
+/// 5. Determine provider from payload.iss claim
+/// 6. Construct signing input as bytes (header + "." + payload)
+/// 7. Hash signing input with SHA-256
 /// 8. Package into OidcVerificationData struct
 /// 9. Validate expiration and other non-cryptographic claims
 pub fn verify_oidc_compact(verification_data: &OidcVerificationData) -> Result<bool> {
@@ -209,20 +193,18 @@ pub fn verify_oidc_compact(verification_data: &OidcVerificationData) -> Result<b
     let public_key = RsaPublicKey::from_pkcs1_der(public_key_der)
         .map_err(|_| error!(ErrorCode::InvalidDerEncoding))?;
 
-    // Create the appropriate signature scheme based on algorithm
-    let scheme = match verification_data.algorithm {
-        RsaAlgorithm::RS256 => Pkcs1v15Sign::new::<Sha256>(),
-        RsaAlgorithm::RS384 => Pkcs1v15Sign::new::<Sha384>(),
-        RsaAlgorithm::RS512 => Pkcs1v15Sign::new::<Sha512>(),
-    };
+    // Create PKCS#1 v1.5 signature scheme for RS256 (SHA-256)
+    let signature_scheme = Pkcs1v15Sign::new::<Sha256>();
 
-    // Verify the signature against the provided hash
-    // The hash represents the original signing input (header.payload)
-    match scheme.verify(
+    // Verify the signature
+    let verification_result = signature_scheme.verify(
         &public_key,
         &verification_data.signing_input_hash,
         &verification_data.signature,
-    ) {
+    );
+
+    // Return the verification result
+    match verification_result {
         Ok(()) => Ok(true),
         Err(_) => Ok(false),
     }
