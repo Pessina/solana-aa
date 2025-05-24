@@ -160,46 +160,15 @@ pub enum OidcProvider {
 }
 
 /// ULTRA-OPTIMIZED OIDC RSA verification using Solana native big_mod_exp
-/// This implementation leverages Solana's native cryptographic syscalls for maximum efficiency
-///
-/// # Performance Benefits:
-/// - Native big_mod_exp syscall: 10-20x faster than manual BigUint operations
-/// - Minimal compute unit usage: ~2000-5000 CU vs ~50000+ CU with BigUint
-/// - No heap allocation for big integer arithmetic
-/// - Constant-time execution prevents timing attacks
-/// - Memory-safe with automatic bounds checking
-///
-/// # Security Benefits:
-/// - Audited native implementation by Solana core team
-/// - Hardware acceleration where available (Intel ADX, ARM64 crypto extensions)
-/// - Side-channel attack resistance
-/// - No dependency on potentially vulnerable external crates for crypto
-///
-/// # Off-chain preprocessing required:
-/// 1. Parse JWT token (header.payload.signature)
-/// 2. Validate JWT format and structure
-/// 3. Base64url decode signature
-/// 4. Extract key ID (kid) from header and map to array index
-/// 5. Determine provider from payload.iss claim
-/// 6. Construct signing input as bytes (header + "." + payload)
-/// 7. Hash signing input with SHA-256
-/// 8. Package into OidcVerificationData struct
-/// 9. Validate expiration and other non-cryptographic claims
+/// Production-ready implementation with minimal logging for maximum performance
 pub fn verify_oidc_native(verification_data: &OidcVerificationData) -> Result<bool> {
-    msg!("🔐 Starting OIDC RSA verification with Solana native crypto");
-
     // Validate input data for security
     verification_data.validate()?;
 
-    // Get the specific public key based on provider and key index (security critical - must be on-chain)
+    // Get the specific public key based on provider and key index
     let public_key_der = match verification_data.provider {
         OidcProvider::Google => GOOGLE_RSA_PUBLIC_KEYS[verification_data.key_index as usize],
     };
-
-    msg!(
-        "🔑 Using Google RSA public key index: {}",
-        verification_data.key_index
-    );
 
     // Parse the DER-encoded public key to extract modulus and exponent
     let public_key = RsaPublicKey::from_pkcs1_der(public_key_der)
@@ -207,114 +176,66 @@ pub fn verify_oidc_native(verification_data: &OidcVerificationData) -> Result<bo
 
     // Extract RSA components as byte arrays
     let modulus_bytes = public_key.n().to_bytes_be();
-    let exponent_bytes = public_key.e().to_bytes_be(); // Usually [0x01, 0x00, 0x01] for 65537
-
-    msg!("📏 RSA key parameters:");
-    msg!(
-        "   Modulus: {} bytes ({}-bit key)",
-        modulus_bytes.len(),
-        modulus_bytes.len() * 8
-    );
-    msg!("   Exponent: {} bytes", exponent_bytes.len());
-    msg!("   Signature: {} bytes", verification_data.signature.len());
-
-    // Prepare signature as base for modular exponentiation
-    // The signature bytes are already in the correct format (big-endian)
-    let signature_bytes = &verification_data.signature;
+    let exponent_bytes = public_key.e().to_bytes_be();
 
     // SOLANA NATIVE: Perform RSA signature verification using native big_mod_exp
     // This computes: signature^exponent mod modulus
-    // Result should be a PKCS#1 v1.5 padded message containing our hash
-    let decrypted_signature = big_mod_exp(signature_bytes, &exponent_bytes, &modulus_bytes);
-
-    msg!("✅ Native modular exponentiation completed");
-    msg!(
-        "   Decrypted signature: {} bytes",
-        decrypted_signature.len()
+    let decrypted_signature = big_mod_exp(
+        &verification_data.signature,
+        &exponent_bytes,
+        &modulus_bytes,
     );
 
-    // PKCS#1 v1.5 padding validation with memory efficiency
-    // For 2048-bit RSA: expect 256 bytes total, hash at the end
+    // PKCS#1 v1.5 padding validation - optimized for performance
     if decrypted_signature.len() != 256 {
-        msg!(
-            "❌ Invalid decrypted signature length: expected 256, got {}",
-            decrypted_signature.len()
-        );
         return Ok(false);
     }
 
-    // Basic PKCS#1 v1.5 structure validation
-    if decrypted_signature.len() >= 2
-        && (decrypted_signature[0] != 0x00 || decrypted_signature[1] != 0x01)
-    {
-        msg!("❌ Invalid PKCS#1 v1.5 padding header");
+    // Validate PKCS#1 v1.5 structure: 0x00 0x01 [padding] 0x00 [DigestInfo]
+    if decrypted_signature[0] != 0x00 || decrypted_signature[1] != 0x01 {
         return Ok(false);
     }
 
-    // Find the 0x00 separator that indicates end of padding and start of DigestInfo
+    // Find separator (0x00) after padding
     let separator_pos = decrypted_signature.iter().skip(2).position(|&x| x == 0x00);
     if separator_pos.is_none() {
-        msg!("❌ No padding separator found in PKCS#1 v1.5 structure");
         return Ok(false);
     }
 
-    let separator_index = separator_pos.unwrap() + 2; // +2 for the initial 0x00 0x01
+    let separator_index = separator_pos.unwrap() + 2;
 
     // Verify padding bytes are all 0xFF
     let padding = &decrypted_signature[2..separator_index];
-    if !padding.iter().all(|&x| x == 0xFF) || padding.is_empty() {
-        msg!("❌ Invalid PKCS#1 v1.5 padding bytes");
+    if padding.is_empty() || !padding.iter().all(|&x| x == 0xFF) {
         return Ok(false);
     }
 
     // Extract DigestInfo + hash portion
     let digest_info = &decrypted_signature[separator_index + 1..];
 
-    // For SHA-256, the DigestInfo should be 19 bytes + 32 bytes hash = 51 bytes total
-    // DigestInfo for SHA-256: 30 31 30 0d 06 09 60 86 48 01 65 03 04 02 01 05 00 04 20
+    // Validate DigestInfo structure for SHA-256 (19 bytes + 32 bytes hash = 51 bytes)
+    if digest_info.len() != 51 {
+        return Ok(false);
+    }
+
+    // SHA-256 DigestInfo header: 30 31 30 0d 06 09 60 86 48 01 65 03 04 02 01 05 00 04 20
     const SHA256_DIGEST_INFO: &[u8] = &[
         0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01,
         0x05, 0x00, 0x04, 0x20,
     ];
 
-    if digest_info.len() != 51 {
-        msg!(
-            "❌ Invalid DigestInfo length: expected 51, got {}",
-            digest_info.len()
-        );
-        return Ok(false);
-    }
-
-    // Verify DigestInfo structure for SHA-256
+    // Verify DigestInfo structure
     if &digest_info[..19] != SHA256_DIGEST_INFO {
-        msg!("❌ Invalid SHA-256 DigestInfo structure");
         return Ok(false);
     }
 
-    // Extract the hash from DigestInfo
-    let extracted_hash = &digest_info[19..51]; // Last 32 bytes
-
-    msg!("🔍 Comparing hashes:");
-    msg!(
-        "   Expected: {:?}",
-        &verification_data.signing_input_hash[..8]
-    );
-    msg!("   Extracted: {:?}", &extracted_hash[..8]);
-
-    // Constant-time comparison to prevent timing attacks
+    // Extract and compare hash (constant-time comparison)
+    let extracted_hash = &digest_info[19..51];
     let mut matches = true;
     for i in 0..32 {
         if extracted_hash[i] != verification_data.signing_input_hash[i] {
             matches = false;
         }
-    }
-
-    if matches {
-        msg!("🎉 RSA verification SUCCESSFUL using Solana native crypto!");
-        msg!("✅ Your Google JWT token is cryptographically valid");
-        msg!("🚀 Performance optimized with native big_mod_exp syscall");
-    } else {
-        msg!("❌ RSA verification failed - hash mismatch");
     }
 
     Ok(matches)
