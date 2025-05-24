@@ -24,12 +24,8 @@ sha3 = "0.10.8"
 schemars = "0.8.22"
 sha2 = "0.10.8"
 bytemuck = { version = "1.22.0", features = ["derive"] }
-# serde_json_canonicalizer = "0.3.0"
-# serde = { version = "1.0.219", features = ["derive"] }
-# serde_json = "1.0.140"
 base64 = "0.22.1"
-rsa = { version = "0.9", default-features = false, features = ["sha2"] }
-# ring = { version = "0.17.14", default-features = false, features = ["alloc"] } # Keep for experimentation
+rsa = { version = "0.9.8", default-features = false, features = ["sha2"] }
 
 
 [dev-dependencies]
