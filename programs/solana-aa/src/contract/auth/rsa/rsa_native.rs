@@ -4,16 +4,12 @@ use rsa::traits::PublicKeyParts;
 use rsa::RsaPublicKey;
 
 // Import Solana native big modular exponentiation
-// Note: This may require enabling the feature gate on mainnet
+// Note: This is not enabled on mainnet/devnet, tracking: https://github.com/solana-labs/solana/pull/32520
 use anchor_lang::solana_program::big_mod_exp::big_mod_exp;
-
-// Ring-inspired optimization: Use direct scheme creation for maximum efficiency
-// This avoids any overhead from dynamic allocation or caching in no_std environment
 
 // Google's actual RSA public keys from JWKS endpoint (DER format)
 // Converted from Google's JWKS endpoint: https://www.googleapis.com/oauth2/v3/certs
-// These keys are in PKCS#1 DER format as required by Ring
-// Keys obtained on: [current date - these should be updated periodically]
+// These keys are in PKCS#1 DER format
 
 // Key 1: kid=89ce3598c473af1bda4bff95e6c8736450206fba
 const GOOGLE_RSA_PUBLIC_KEY_1: &[u8] = &[
@@ -104,11 +100,9 @@ pub enum OidcProvider {
 }
 
 /// OIDC RSA verification using Solana native big_mod_exp
-/// Production-ready implementation with minimal logging for maximum performance
 pub fn verify_oidc_native(verification_data: &OidcVerificationData) -> Result<bool> {
     verification_data.validate()?;
 
-    // Get public key based on provider and key index
     let public_key_der = match verification_data.provider {
         OidcProvider::Google => GOOGLE_RSA_PUBLIC_KEYS[verification_data.key_index as usize],
     };
@@ -117,7 +111,6 @@ pub fn verify_oidc_native(verification_data: &OidcVerificationData) -> Result<bo
     let public_key = RsaPublicKey::from_pkcs1_der(public_key_der)
         .map_err(|_| error!(ErrorCode::InvalidDerEncoding))?;
 
-    // Extract RSA components
     let modulus_bytes = public_key.n().to_bytes_be();
     let exponent_bytes = public_key.e().to_bytes_be();
 
