@@ -3,7 +3,7 @@ import { BN, Program } from "@coral-xyz/anchor";
 import { SolanaAa } from "../target/types/solana_aa";
 import { assert } from "chai";
 import { confirmTransaction, logComputeUnitsUsed } from "../utils/solana";
-import { Address, Hex, toBytes } from "viem";
+import { Hex, toBytes } from "viem";
 import {
   cleanUpProgramState,
   findAbstractAccountPDA,
@@ -17,10 +17,6 @@ const ETH_ADDRESS_3: Hex = "0x90F79bf6EB2c4f870365E785982E1f101E93b906";
 const ETH_ADDRESS_4: Hex = "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65";
 const ETH_ADDRESS_5: Hex = "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc";
 const ETH_ADDRESS_6: Hex = "0x976EA74026E726554dB657fA54763abd0C3a0aa9";
-
-type Permissions = {
-  enableActAs: boolean;
-} | null;
 
 const ETHEREUM_IDENTITY_WITH_PERMISSIONS = buildEthereumIdentity(
   ETH_ADDRESS,
