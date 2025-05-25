@@ -109,6 +109,10 @@ pub enum ErrorCode {
     InvalidSignatureLength,
     #[msg("Invalid key index")]
     InvalidKeyIndex,
+    #[msg("Invalid DER encoding")]
+    InvalidDerEncoding,
+    #[msg("Invalid modulus")]
+    InvalidModulus,
 }
 
 #[derive(Accounts)]

@@ -128,6 +128,13 @@ pub mod solana_aa {
         verify_oidc_native(&verification_data)
     }
 
+    pub fn verify_oidc_rsa_crate(
+        _ctx: Context<VerifyOidcRsaSignature>,
+        verification_data: OidcVerificationData,
+    ) -> Result<bool> {
+        crate::contract::auth::rsa::rsa_rsa_crate::verify_oidc_rsa_crate(&verification_data)
+    }
+
     pub fn create_account(
         ctx: Context<CreateAbstractAccount>,
         identity_with_permissions: IdentityWithPermissions,
