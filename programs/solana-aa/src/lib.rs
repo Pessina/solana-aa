@@ -7,7 +7,7 @@ mod utils;
 
 use crate::contract::accounts::*;
 use crate::contract::auth::ek256::*;
-use crate::contract::auth::rsa::{rsa_native::*, utils::*};
+use crate::contract::auth::rsa::{rsa_multi_tx::*, rsa_native::*, utils::*};
 use crate::contract::auth::secp256r1_sha256::*;
 use crate::contract::contract_lifecycle::*;
 use crate::contract::transaction::execute::*;
@@ -133,6 +133,53 @@ pub mod solana_aa {
         verification_data: OidcVerificationData,
     ) -> Result<bool> {
         crate::contract::auth::rsa::rsa_rsa_crate::verify_oidc_rsa_crate(&verification_data)
+    }
+
+    pub fn init_rsa_verification_multi_tx(
+        ctx: Context<InitRsaVerification>,
+        verification_data: OidcVerificationData,
+    ) -> Result<()> {
+        init_rsa_verification(ctx, verification_data)
+    }
+
+    pub fn continue_rsa_verification_multi_tx(
+        ctx: Context<ContinueRsaVerification>,
+    ) -> Result<bool> {
+        continue_rsa_verification(ctx)
+    }
+
+    pub fn finalize_rsa_verification_multi_tx(
+        ctx: Context<FinalizeRsaVerification>,
+        verification_data: OidcVerificationData,
+    ) -> Result<bool> {
+        finalize_rsa_verification(ctx, verification_data)
+    }
+
+    pub fn cleanup_rsa_verification_multi_tx(ctx: Context<CleanupRsaVerification>) -> Result<()> {
+        cleanup_rsa_verification(ctx)
+    }
+
+    // Alternative RSA verification approach with simplified arithmetic
+    pub fn init_rsa_verification_simple(
+        ctx: Context<InitRsaVerification>,
+        verification_data: OidcVerificationData,
+    ) -> Result<()> {
+        init_rsa_verification(ctx, verification_data)
+    }
+
+    pub fn continue_rsa_verification_simple(ctx: Context<ContinueRsaVerification>) -> Result<bool> {
+        continue_rsa_verification(ctx)
+    }
+
+    pub fn finalize_rsa_verification_simple(
+        ctx: Context<FinalizeRsaVerification>,
+        verification_data: OidcVerificationData,
+    ) -> Result<bool> {
+        finalize_rsa_verification(ctx, verification_data)
+    }
+
+    pub fn cleanup_rsa_verification_simple(ctx: Context<CleanupRsaVerification>) -> Result<()> {
+        cleanup_rsa_verification(ctx)
     }
 
     pub fn create_account(
