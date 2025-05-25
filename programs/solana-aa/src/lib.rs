@@ -7,7 +7,7 @@ mod utils;
 
 use crate::contract::accounts::*;
 use crate::contract::auth::ek256::*;
-use crate::contract::auth::rsa::{rsa_multi_tx::*, rsa_native::*, utils::*};
+use crate::contract::auth::rsa::{rsa_native::*, utils::*};
 use crate::contract::auth::secp256r1_sha256::*;
 use crate::contract::contract_lifecycle::*;
 use crate::contract::transaction::execute::*;
@@ -81,7 +81,6 @@ pub mod solana_aa {
         close_storage_impl(ctx)
     }
 
-    // TODO: Debug code
     pub fn verify_eth(
         ctx: Context<VerifyEthereumSignature>,
         signed_message: Vec<u8>,
@@ -94,12 +93,9 @@ pub mod solana_aa {
         )
     }
 
-    // TODO: Debug code
     pub fn get_eth_data(ctx: Context<VerifyEthereumSignature>) -> Result<(String, Transaction)> {
         let (eth_address, message) = get_ek256_data_impl(&ctx.accounts.instructions)?;
-
         let transaction = Transaction::try_from_slice(&message).unwrap();
-
         Ok((hex::encode(eth_address), transaction))
     }
 
@@ -111,10 +107,8 @@ pub mod solana_aa {
         verify_secp256r1_sha256_impl(&ctx, signed_message, signer_compressed_public_key)
     }
 
-    // TODO: debug code
     pub fn get_webauthn_data(ctx: Context<VerifyWebauthnSignature>) -> Result<(String, String)> {
         let (pubkey_bytes, message_bytes) = get_secp256r1_sha256_data_impl(&ctx)?;
-
         Ok((
             hex::encode(pubkey_bytes),
             String::from_utf8(message_bytes).unwrap(),
@@ -135,53 +129,6 @@ pub mod solana_aa {
         crate::contract::auth::rsa::rsa_rsa_crate::verify_oidc_rsa_crate(&verification_data)
     }
 
-    pub fn init_rsa_verification_multi_tx(
-        ctx: Context<InitRsaVerification>,
-        verification_data: OidcVerificationData,
-    ) -> Result<()> {
-        init_rsa_verification(ctx, verification_data)
-    }
-
-    pub fn continue_rsa_verification_multi_tx(
-        ctx: Context<ContinueRsaVerification>,
-    ) -> Result<bool> {
-        continue_rsa_verification(ctx)
-    }
-
-    pub fn finalize_rsa_verification_multi_tx(
-        ctx: Context<FinalizeRsaVerification>,
-        verification_data: OidcVerificationData,
-    ) -> Result<bool> {
-        finalize_rsa_verification(ctx, verification_data)
-    }
-
-    pub fn cleanup_rsa_verification_multi_tx(ctx: Context<CleanupRsaVerification>) -> Result<()> {
-        cleanup_rsa_verification(ctx)
-    }
-
-    // Alternative RSA verification approach with simplified arithmetic
-    pub fn init_rsa_verification_simple(
-        ctx: Context<InitRsaVerification>,
-        verification_data: OidcVerificationData,
-    ) -> Result<()> {
-        init_rsa_verification(ctx, verification_data)
-    }
-
-    pub fn continue_rsa_verification_simple(ctx: Context<ContinueRsaVerification>) -> Result<bool> {
-        continue_rsa_verification(ctx)
-    }
-
-    pub fn finalize_rsa_verification_simple(
-        ctx: Context<FinalizeRsaVerification>,
-        verification_data: OidcVerificationData,
-    ) -> Result<bool> {
-        finalize_rsa_verification(ctx, verification_data)
-    }
-
-    pub fn cleanup_rsa_verification_simple(ctx: Context<CleanupRsaVerification>) -> Result<()> {
-        cleanup_rsa_verification(ctx)
-    }
-
     pub fn create_account(
         ctx: Context<CreateAbstractAccount>,
         identity_with_permissions: IdentityWithPermissions,
@@ -189,7 +136,6 @@ pub mod solana_aa {
         create_account_impl(ctx, identity_with_permissions)
     }
 
-    // TODO: Debug code, will be remove as those methods need to go through auth
     pub fn delete_account(ctx: Context<ExecuteEk256>, _account_id: AccountId) -> Result<()> {
         AbstractAccount::close_account(AbstractAccountOperationAccounts {
             abstract_account: &mut ctx.accounts.abstract_account,
@@ -198,7 +144,6 @@ pub mod solana_aa {
         })
     }
 
-    // TODO: Debug code, will be remove as those methods need to go through auth
     pub fn add_identity(
         ctx: Context<ExecuteEk256>,
         _account_id: AccountId,
@@ -214,7 +159,6 @@ pub mod solana_aa {
         )
     }
 
-    // TODO: Debug code, will be remove as those methods need to go through auth
     pub fn remove_identity(
         ctx: Context<ExecuteEk256>,
         _account_id: AccountId,
