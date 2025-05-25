@@ -113,6 +113,10 @@ pub enum ErrorCode {
     InvalidDerEncoding,
     #[msg("Invalid modulus")]
     InvalidModulus,
+    #[msg("Modpow operation not complete")]
+    ModpowNotComplete,
+    #[msg("Verification data mismatch")]
+    VerificationDataMismatch,
 }
 
 #[derive(Accounts)]

@@ -1,7 +1,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { SolanaAa } from "../target/types/solana_aa";
-import { confirmTransaction, getTxInfo } from "../utils/solana";
+import { SolanaAa } from "../../target/types/solana_aa";
+import { confirmTransaction, getTxInfo } from "../../utils/solana";
 import { expect } from "chai";
 import { createHash } from "crypto";
 import { ComputeBudgetProgram } from "@solana/web3.js";
@@ -261,7 +261,7 @@ describe("RSA OIDC Verification", () => {
   });
 });
 
-describe.only("RSA OIDC Verification - RSA Crate Implementation", () => {
+describe("RSA OIDC Verification - RSA Crate Implementation", () => {
   const provider = anchor.getProvider() as anchor.AnchorProvider;
   const program = anchor.workspace.solanaAa as Program<SolanaAa>;
   anchor.setProvider(anchor.AnchorProvider.env());
