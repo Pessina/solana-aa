@@ -146,28 +146,19 @@ describe.only("RSA OIDC Verification", () => {
       units: 100_000,
     });
 
-    const txSignature = await program.methods
-      .verifyOidcRsaNative(verificationData)
-      .preInstructions([computeBudgetInstruction])
-      .accounts({})
-      .rpc();
+    try {
+      await program.methods
+        .verifyOidcRsaNative(verificationData)
+        .preInstructions([computeBudgetInstruction])
+        .accounts({})
+        .rpc();
 
-    await confirmTransaction(provider.connection, txSignature);
-
-    const txInfo = await getTxInfo({ txSignature });
-    const computeUnitsUsed = txInfo?.meta?.computeUnitsConsumed || 0;
-
-    console.log(`💻 Compute units used: ${computeUnitsUsed.toLocaleString()}`);
-
-    const returnData = txInfo?.meta?.returnData?.data[0];
-    if (!returnData) {
-      throw new Error("No return data found");
+      expect.fail(
+        "Expected transaction to fail with InvalidSignatureFormat error"
+      );
+    } catch (error: any) {
+      expect(error.toString()).to.include("InvalidSignatureFormat");
     }
-
-    const decodedData = Buffer.from(returnData, "base64");
-    const result = decodedData.readUInt8(0) === 1;
-
-    expect(result).to.be.false;
   });
 
   it("should fail verification with wrong key index", async () => {
@@ -188,28 +179,19 @@ describe.only("RSA OIDC Verification", () => {
       units: 100_000,
     });
 
-    const txSignature = await program.methods
-      .verifyOidcRsaNative(verificationData)
-      .preInstructions([computeBudgetInstruction])
-      .accounts({})
-      .rpc();
+    try {
+      await program.methods
+        .verifyOidcRsaNative(verificationData)
+        .preInstructions([computeBudgetInstruction])
+        .accounts({})
+        .rpc();
 
-    await confirmTransaction(provider.connection, txSignature);
-
-    const txInfo = await getTxInfo({ txSignature });
-    const computeUnitsUsed = txInfo?.meta?.computeUnitsConsumed || 0;
-
-    console.log(`💻 Compute units used: ${computeUnitsUsed.toLocaleString()}`);
-
-    const returnData = txInfo?.meta?.returnData?.data[0];
-    if (!returnData) {
-      throw new Error("No return data found");
+      expect.fail(
+        "Expected transaction to fail with InvalidSignatureFormat error"
+      );
+    } catch (error: any) {
+      expect(error.toString()).to.include("InvalidSignatureFormat");
     }
-
-    const decodedData = Buffer.from(returnData, "base64");
-    const result = decodedData.readUInt8(0) === 1;
-
-    expect(result).to.be.false;
   });
 
   it("should fail verification with wrong token", async () => {

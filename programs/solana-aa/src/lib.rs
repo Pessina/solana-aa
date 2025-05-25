@@ -1,29 +1,27 @@
 use anchor_lang::prelude::*;
 
-pub mod contract;
+mod contract;
 mod pda_seeds;
 mod types;
 mod utils;
 
 use crate::contract::accounts::*;
 use crate::contract::auth::ek256::*;
-use crate::contract::auth::rsa::rsa_native::*;
+use crate::contract::auth::rsa::{rsa_native::*, utils::*};
 use crate::contract::auth::secp256r1_sha256::*;
 use crate::contract::contract_lifecycle::*;
 use crate::contract::transaction::execute::*;
 use crate::contract::transaction_buffer::*;
-use crate::types::account::AccountId;
-use crate::types::identity::*;
+use crate::types::{
+    account::{AbstractAccount, AbstractAccountOperationAccounts, AccountId},
+    identity::*,
+    transaction::transaction::Transaction,
+};
 
 declare_id!("2PYNfKSoM7rFJeMuvEidASxgpdPAXYascVDmH6jpBa7o");
 
 #[program]
 pub mod solana_aa {
-
-    use crate::types::{
-        account::{AbstractAccount, AbstractAccountOperationAccounts},
-        transaction::transaction::Transaction,
-    };
 
     use super::*;
 
@@ -85,12 +83,12 @@ pub mod solana_aa {
 
     // TODO: Debug code
     pub fn verify_eth(
-        _ctx: Context<VerifyEthereumSignature>,
+        ctx: Context<VerifyEthereumSignature>,
         signed_message: Vec<u8>,
         signer_compressed_public_key: String,
     ) -> Result<bool> {
         verify_ek256_impl(
-            &_ctx.accounts.instructions,
+            &ctx.accounts.instructions,
             signed_message,
             signer_compressed_public_key,
         )
@@ -123,21 +121,6 @@ pub mod solana_aa {
         ))
     }
 
-    /// NATIVE OIDC RSA verification endpoint - ULTRA-OPTIMIZED using Solana native crypto
-    /// This uses Solana's native big_mod_exp syscall for maximum performance and security
-    ///
-    /// # Performance Benefits:
-    /// - Native big_mod_exp syscall: 10-20x faster than manual BigUint operations
-    /// - Minimal compute unit usage: ~2000-5000 CU vs ~50000+ CU with BigUint
-    /// - No heap allocation for big integer arithmetic
-    /// - Constant-time execution prevents timing attacks
-    /// - Memory-safe with automatic bounds checking
-    ///
-    /// # Security Benefits:
-    /// - Audited native implementation by Solana core team
-    /// - Hardware acceleration where available
-    /// - Side-channel attack resistance
-    /// - No dependency on potentially vulnerable external crates for crypto
     pub fn verify_oidc_rsa_native(
         _ctx: Context<VerifyOidcRsaSignature>,
         verification_data: OidcVerificationData,
