@@ -8,7 +8,7 @@ import { ComputeBudgetProgram } from "@solana/web3.js";
 import { createOptimizedVerificationData } from "./utils";
 import { VALID_OIDC_TOKEN } from "./constants";
 
-describe.only("RSA Syscall OIDC Verification", () => {
+describe("RSA Syscall OIDC Verification", () => {
   const provider = anchor.getProvider() as anchor.AnchorProvider;
   const program = anchor.workspace.solanaAa as Program<SolanaAa>;
   anchor.setProvider(anchor.AnchorProvider.env());
