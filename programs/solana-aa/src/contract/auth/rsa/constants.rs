@@ -61,4 +61,3 @@ pub const SHA256_DIGEST_INFO: &[u8] = &[
 pub const RSA_2048_SIGNATURE_LENGTH: usize = 256;
 pub const SHA256_DIGEST_INFO_LENGTH: usize = 19;
 pub const FULL_DIGEST_INFO_LENGTH: usize = 51;
-pub const SHA256_HASH_LENGTH: usize = 32;
