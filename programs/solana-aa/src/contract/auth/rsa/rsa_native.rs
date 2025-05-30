@@ -4,7 +4,7 @@ use rsa::traits::PublicKeyParts;
 use rsa::RsaPublicKey;
 
 // Import Solana native big modular exponentiation
-// This is not enabled on mainnet/devnet, tracking: https://github.com/solana-labs/solana/pull/32520
+// Note: This is not enabled on mainnet/devnet, tracking: https://github.com/solana-labs/solana/pull/32520
 use anchor_lang::solana_program::big_mod_exp::big_mod_exp;
 
 use super::constants::*;
