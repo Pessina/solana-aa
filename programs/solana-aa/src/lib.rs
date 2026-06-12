@@ -2,19 +2,22 @@ use anchor_lang::prelude::*;
 
 mod contract;
 mod pda_seeds;
-mod types;
+pub mod types;
 mod utils;
 
 use crate::contract::accounts::*;
 use crate::contract::auth::ek256::*;
 use crate::contract::auth::rsa::{rsa_native::*, utils::*};
 use crate::contract::auth::secp256r1_sha256::*;
+use crate::contract::auth::zk_oidc::Sp1Groth16Proof;
 use crate::contract::contract_lifecycle::*;
+use crate::contract::oidc_registry::*;
 use crate::contract::transaction::execute::*;
 use crate::contract::transaction_buffer::*;
 use crate::types::{
     account::{AbstractAccount, AbstractAccountOperationAccounts, AccountId},
     identity::*,
+    oidc_key_registry::OidcKeyEntry,
     transaction::transaction::Transaction,
 };
 
@@ -176,5 +179,30 @@ pub mod solana_aa {
 
     pub fn execute_ek256(ctx: Context<ExecuteEk256>, account_id: AccountId) -> Result<()> {
         execute_ek256_impl(ctx, account_id)
+    }
+
+    pub fn init_oidc_registry(ctx: Context<InitOidcRegistry>) -> Result<()> {
+        init_oidc_registry_impl(ctx)
+    }
+
+    pub fn add_oidc_key(ctx: Context<AddOidcKey>, key_entry: OidcKeyEntry) -> Result<()> {
+        add_oidc_key_impl(ctx, key_entry)
+    }
+
+    pub fn remove_oidc_key(ctx: Context<RemoveOidcKey>, key_entry: OidcKeyEntry) -> Result<()> {
+        remove_oidc_key_impl(ctx, key_entry)
+    }
+
+    pub fn close_oidc_registry(_ctx: Context<CloseOidcRegistry>) -> Result<()> {
+        Ok(())
+    }
+
+    pub fn execute_zk_oidc(
+        ctx: Context<ExecuteZkOidc>,
+        account_id: AccountId,
+        transaction: Transaction,
+        groth16_proof: Sp1Groth16Proof,
+    ) -> Result<()> {
+        execute_zk_oidc_impl(ctx, account_id, transaction, groth16_proof)
     }
 }
