@@ -13,6 +13,7 @@ path = "src/main.rs"
 sp1-build = "=5.0.0"
 
 [dependencies]
+# Pinned with the guest at SP1 5.0.x — see zk/jwt-program/Cargo.toml.
 sp1-sdk = "=5.0.3"
 solana-aa = { path = "../../programs/solana-aa", features = ["no-entrypoint"] }
 anchor-lang = "0.31.1"
@@ -24,5 +25,3 @@ sha2 = "0.10.8"
 base64 = "0.22.1"
 hex = "0.4.3"
 anyhow = "1.0"
-p3-baby-bear = "0.2.3-succinct"
-p3-field = "0.2.3-succinct"
