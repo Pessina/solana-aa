@@ -18,3 +18,40 @@ wallet = "~/.config/solana/id.json"
 
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 'tests/**/*.spec.ts'"
+
+# Mainnet feature parity: the test validator enables every runtime feature by
+# default, which masks mainnet incompatibilities (e.g. the removed RSA PoC's
+# big_mod_exp syscall worked locally but made the program undeployable on
+# mainnet). Deactivate everything inactive on mainnet so tests run under real
+# conditions. Regenerate the list with:
+#   solana feature status -um | grep inactive | awk '{print $1}'
+[test.validator]
+deactivate_feature = [
+    "1ncomp1ete111111111111111111111111111111111",
+    "2aQJYqER2aKyb3cZw22v4SL2xMX7vwXBRWfvS4pTrtED",
+    "2oMRZEDWT2tqtYMofhmmfQ8SsjqUFzT6sYXppQDavxwz",
+    "51VCKU5eV6mcTc9q9ArfWELU2CqDoi13hdAjr6fHMdtv",
+    "5TuppMutoyzhUSfuYdhgzD47F92GL1g89KpCZQKqedxP",
+    "8aXvSuopd1PUj7UhehfXJRg6619RHp8ZvwTyyJHdUYsj",
+    "9LZdXeKGeBV6hRLdxS1rHbHoEUsKqesCC2ZAPTPKJAbK",
+    "9onWzzvCzNC2jfhxxeqRgs5q7nFAAKpCUvkj6T6GJK9i",
+    "C8XZNs1bfzaiT3YDeXZJ7G5swQWQv7tVzDnCxtHvnSpw",
+    "DT4n6ABDqs6w4bnfwrXT9rsprcPf6cdDga1egctaPkLC",
+    "EBq48m8irRKuE7ZnMTLvLg2UuGSqhe8s8oMqnmja1fJw",
+    "ENTRYnPAoT5Swwx73YDGzMp3XnNH1kxacyvLosRHza1i",
+    "EaQpmC6GtRssaZ3PCUM5YksGqUdMLeZ46BQXYtHYakDS",
+    "G6ANXD6ptCSyNd9znZm7j4dEczAJCfx7Cy43oBx3rKHJ",
+    "HTW2pSyErTj4BV6KBM9NZ9VBUJVxt7sacNWcf76wtzb3",
+    "HcW8ZjBezYYgvcbxNJwqv1t484Y2556qJsfNDWvJGZRH",
+    "RfEcA95xnhuwooVAhUUksEJLZBF7xKCLuqrJoqk4Zph",
+    "TestFeature11111111111111111111111111111111",
+    "TestFeature21111111111111111111111111111111",
+    "chaie9S2zVfuxJKNRGkyTDokLwWxx6kD2ZLsqQHaDD8",
+    "depVvnQ2UysGrhwdiwU42tCadZL8GcBb1i2GYhMopQv",
+    "sProgVaNWkYdP2eTRAy1CPrgb3b9p8yXCASrPEqo6VJ",
+    "turbRpTzBzDU6PJmWvRTbcJXXGxUs19CvQamUrRD9bN",
+    "zk1snxsc6Fh3wsGNbbHAJNHiJoYgF29mMnTSusGx5EJ",
+    "zkNLP7EQALfC1TYeB3biDU7akDckj8iPkvh9y2Mt2K3",
+    "zkemPXcuM3G4wpMDZ36Cpw34EjUpvm1nuioiSGbGZPR",
+    "zkiTNuzBKxrCLMKehzuQeKZyLtX2yvFcEKMML8nExU8",
+]

@@ -7,7 +7,6 @@ mod utils;
 
 use crate::contract::accounts::*;
 use crate::contract::auth::ek256::*;
-use crate::contract::auth::rsa::{rsa_native::*, utils::*};
 use crate::contract::auth::secp256r1_sha256::*;
 use crate::contract::auth::zk_oidc::Sp1Groth16Proof;
 use crate::contract::contract_lifecycle::*;
@@ -116,20 +115,6 @@ pub mod solana_aa {
             hex::encode(pubkey_bytes),
             String::from_utf8(message_bytes).unwrap(),
         ))
-    }
-
-    pub fn verify_oidc_rsa_native(
-        _ctx: Context<VerifyOidcRsaSignature>,
-        verification_data: OidcVerificationData,
-    ) -> Result<bool> {
-        verify_oidc_native(&verification_data)
-    }
-
-    pub fn verify_oidc_rsa_crate(
-        _ctx: Context<VerifyOidcRsaSignature>,
-        verification_data: OidcVerificationData,
-    ) -> Result<bool> {
-        crate::contract::auth::rsa::rsa_rsa_crate::verify_oidc_rsa_crate(&verification_data)
     }
 
     pub fn create_account(

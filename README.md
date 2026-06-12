@@ -17,7 +17,6 @@ Signature verification is delegated to Solana's native precompiles rather than d
 | Ethereum wallet | secp256k1 + keccak256 ("ek256") | [secp256k1 precompile](https://docs.anza.xyz/runtime/programs#secp256k1-program) | Verification + execution |
 | WebAuthn passkey | secp256r1 (P-256) + SHA-256 | [secp256r1 precompile](https://docs.anza.xyz/runtime/programs#secp256r1-program) | Verification only |
 | OIDC | RS256 JWT inside an SP1 zkVM proof | Groth16 over [alt_bn128 syscalls](https://docs.anza.xyz/proposals/precompiles) (`sp1-solana`) | Verification + execution |
-| OIDC (legacy PoC) | RSA-2048 PKCS#1 v1.5 + SHA-256 (RS256) | `big_mod_exp` syscall / `rsa` crate | Dead end, localnet only |
 
 The pattern is the standard precompile + instruction introspection flow: the client places the precompile verification instruction immediately before the program instruction in the same transaction. If the signature is invalid the runtime aborts the whole transaction, so by the time the program runs, the signature is known-good. The program then reads the precompile instruction back through the instructions sysvar to learn *what* was verified (signer + message) and uses that as the authenticated caller identity.
 
@@ -91,15 +90,11 @@ Costs (measured, see [`zk/BENCHMARK.md`](zk/BENCHMARK.md)): ~1.37M zkVM cycles p
 
 Known limitations of this path: proving latency makes it unsuitable for interactive signing today; JWT `exp`/`iat` are not validated (the transaction binding + account nonce already make a token single-use); the vkey and registry lifecycles need governance before any real deployment.
 
-### Legacy OIDC / RSA verification (PoC)
+### Removed: direct on-chain RSA verification
 
-Two earlier attempts at verifying RS256 directly on-chain, kept for reference, both dead ends outside localnet ([`contract/auth/rsa`](programs/solana-aa/src/contract/auth/rsa), [`tests/rsa/README.md`](tests/rsa/README.md)):
+Two earlier PoCs verified RS256 directly on-chain; both were dead ends and have been removed from the tree (see git history): `big_mod_exp`-syscall verification (syscall not enabled on mainnet/devnet, [solana-labs/solana#32520](https://github.com/solana-labs/solana/pull/32520)) and pure-Rust `rsa`-crate verification (exceeds the compute limit; multi-transaction splitting exceeds the heap limit). Tracked in [#13](https://github.com/Pessina/solana-aa/issues/13); superseded by the ZK path above.
 
-- **`rsa_native`** — uses the `big_mod_exp` syscall. Works on localnet, but the syscall is not enabled on mainnet/devnet ([solana-labs/solana#32520](https://github.com/solana-labs/solana/pull/32520)).
-- **`rsa_rsa_crate`** — pure-Rust modular exponentiation via the `rsa` crate. Exceeds the compute unit limit.
-- Splitting verification across multiple transactions was also tried and removed — it exceeds the heap limit.
-
-Tracked in [#13](https://github.com/Pessina/solana-aa/issues/13). The ZK path above supersedes this approach.
+Removal wasn't just cleanup: a program whose binary references an inactive syscall fails loader ELF verification with `Unresolved symbol (sol_big_mod_exp)` — merely containing the PoC made the program **undeployable on mainnet**, even if the instruction was never called. Caught by mainnet-feature-parity testing (below).
 
 ## Known gaps
 
@@ -125,8 +120,7 @@ programs/solana-aa/src/
 │   ├── auth/
 │   │   ├── ek256.rs             # secp256k1 (Ethereum) precompile introspection
 │   │   ├── secp256r1_sha256.rs  # secp256r1 (WebAuthn) precompile introspection
-│   │   ├── zk_oidc.rs           # SP1 Groth16 verification of the JWT guest program
-│   │   └── rsa/                 # Legacy OIDC RSA PoC (localnet only, superseded)
+│   │   └── zk_oidc.rs           # SP1 Groth16 verification of the JWT guest program
 │   └── transaction/
 │       ├── execute.rs           # execute_ek256 / execute_zk_oidc → validate → dispatch
 │       └── validation.rs        # Identity membership + nonce + account binding
@@ -175,6 +169,11 @@ cargo run --release -- fixture --out ../../tests/fixtures/zk-oidc-add-identity.j
 | [`tests/secp256r1-sha256-auth.spec.ts`](tests/secp256r1-sha256-auth.spec.ts) | WebAuthn (P-256) verification, precompile and program error cases |
 | [`tests/zk-oidc.spec.ts`](tests/zk-oidc.spec.ts) | ZK OIDC execution against the golden Groth16 fixture: happy path, replay, transaction-binding, registry and identity-membership rejections |
 | [`tests/transaction-buffer.spec.ts`](tests/transaction-buffer.spec.ts) | Chunked storage lifecycle |
-| [`tests/rsa/*.spec.ts`](tests/rsa) | Legacy OIDC RSA verification PoCs (localnet only) |
+
+### Mainnet feature parity
+
+By default `solana-test-validator` enables **all** runtime features, including ones inactive on mainnet — which makes mainnet-incompatible code look fine (it hid both the `big_mod_exp` dead end and the deploy blocker above). This repo pins the test validator to mainnet's feature set: `[test.validator] deactivate_feature` in [`Anchor.toml`](Anchor.toml) lists every mainnet-inactive feature, so plain `anchor test` runs under real mainnet conditions. The full suite passes there — the secp256k1/secp256r1 precompiles and the alt_bn128 syscalls used by ZK OIDC are all mainnet-active.
+
+Mainnet activations move over time; refresh the list with `solana feature status -um | grep inactive | awk '{print $1}'`.
 
 The Ethereum test keys are the standard Hardhat/Anvil development accounts.
