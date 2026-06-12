@@ -10,8 +10,6 @@ use anchor_lang::AnchorSerialize;
 use anyhow::{Context, Result};
 use base64::Engine;
 use clap::{Parser, Subcommand};
-use p3_baby_bear::BabyBear;
-use p3_field::PrimeField32;
 use rsa::{
     pkcs8::{DecodePrivateKey, EncodePublicKey},
     Pkcs1v15Sign, RsaPrivateKey, RsaPublicKey,
@@ -31,13 +29,11 @@ const TEST_ISS: &str = "https://test-issuer.solana-aa.dev";
 const TEST_AUD: &str = "solana-aa-tests";
 const TEST_EMAIL: &str = "test@solana-aa.dev";
 
-type PoseidonHash = [BabyBear; 8];
-
 /// Mirror of the guest program's `PublicOutputs` (bincode field order must match).
 #[derive(Serialize, Deserialize, Debug)]
 struct PublicOutputs {
-    email_hash: PoseidonHash,
-    pk_hash: PoseidonHash,
+    email_hash: [u8; 32],
+    pk_hash: [u8; 32],
     iss: String,
     aud: String,
     nonce: String,
@@ -180,8 +176,8 @@ fn fixture(
         "proof": hex::encode(proof.bytes()),
         "publicValues": hex::encode(proof.public_values.to_vec()),
         "vkeyHash": vk.bytes32(),
-        "emailHash": hex::encode(poseidon_to_bytes(&outputs.email_hash)),
-        "pkHash": hex::encode(poseidon_to_bytes(&outputs.pk_hash)),
+        "emailHash": hex::encode(outputs.email_hash),
+        "pkHash": hex::encode(outputs.pk_hash),
         "iss": outputs.iss,
         "aud": outputs.aud,
         "nonce": outputs.nonce,
@@ -200,15 +196,6 @@ fn print_outputs(outputs: &PublicOutputs) {
     println!("iss: {}", outputs.iss);
     println!("aud: {}", outputs.aud);
     println!("nonce: {}", outputs.nonce);
-    println!("email_hash: {}", hex::encode(poseidon_to_bytes(&outputs.email_hash)));
-    println!("pk_hash: {}", hex::encode(poseidon_to_bytes(&outputs.pk_hash)));
-}
-
-/// Same conversion as on-chain: 8 BabyBear elements -> 32 bytes (u32 LE each).
-fn poseidon_to_bytes(hash: &PoseidonHash) -> [u8; 32] {
-    let mut bytes = [0u8; 32];
-    for (i, elem) in hash.iter().enumerate() {
-        bytes[i * 4..(i + 1) * 4].copy_from_slice(&elem.as_canonical_u32().to_le_bytes());
-    }
-    bytes
+    println!("email_hash: {}", hex::encode(outputs.email_hash));
+    println!("pk_hash: {}", hex::encode(outputs.pk_hash));
 }

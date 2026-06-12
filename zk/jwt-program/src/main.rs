@@ -5,29 +5,31 @@
 //! claims) panics, so a proof can only exist for a JWT whose signature verifies
 //! against the provided public key. Policy decisions (trusted issuer keys, identity
 //! membership, transaction binding) belong to the on-chain program.
+//!
+//! RSA and SHA-256 use SP1's precompile-accelerated forks (see [patch.crates-io]
+//! in Cargo.toml), turning the dominant bigint/hash work into syscalls.
 
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
 use base64::Engine;
 use p3_baby_bear::BabyBear;
-use p3_field::AbstractField;
+use p3_field::{AbstractField, PrimeField32};
 use rsa::{pkcs8::DecodePublicKey, Pkcs1v15Sign, RsaPublicKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sp1_primitives::poseidon2_hash;
 
-type PoseidonHash = [BabyBear; 8];
-
 /// Public outputs committed by this guest program.
 ///
 /// MUST stay field-for-field compatible (bincode order) with `PublicOutputs`
 /// in `programs/solana-aa/src/contract/auth/zk_oidc.rs`. The golden fixture
-/// test in `tests/zk-oidc.spec.ts` catches drift.
+/// test in `tests/zk-oidc.spec.ts` catches drift. Hashes are committed as
+/// plain bytes so the on-chain program needs no SP1 field-type dependencies.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PublicOutputs {
-    pub email_hash: PoseidonHash,
-    pub pk_hash: PoseidonHash,
+    pub email_hash: [u8; 32],
+    pub pk_hash: [u8; 32],
     pub iss: String,
     pub aud: String,
     pub nonce: String,
@@ -93,17 +95,26 @@ fn extract_claims(jwt_payload: &[u8]) -> Result<Claims, &'static str> {
     })
 }
 
-/// Packs bytes into BabyBear field elements (4 bytes per element, little-endian)
-/// and Poseidon2-hashes them. `poseidon_to_bytes` on-chain converts the result
-/// back to 32 bytes with the same layout.
-fn poseidon_hash_bytes(data: &[u8]) -> PoseidonHash {
-    let mut field_elements = Vec::with_capacity(data.len().div_ceil(4));
-    for chunk in data.chunks(4) {
+/// Poseidon2 hash over bytes, returned as 32 plain bytes.
+///
+/// Bytes are packed 3 per field element so every packed value (< 2^24) is
+/// strictly below the 31-bit field modulus — no modular aliasing between
+/// distinct inputs. The 8 output elements are emitted as canonical u32 LE.
+fn poseidon_hash_bytes(data: &[u8]) -> [u8; 32] {
+    let mut field_elements = Vec::with_capacity(data.len().div_ceil(3));
+    for chunk in data.chunks(3) {
         let mut value = 0u32;
         for (i, &byte) in chunk.iter().enumerate() {
             value |= (byte as u32) << (i * 8);
         }
         field_elements.push(BabyBear::from_canonical_u32(value));
     }
-    poseidon2_hash(field_elements)
+
+    let hash = poseidon2_hash(field_elements);
+
+    let mut bytes = [0u8; 32];
+    for (i, elem) in hash.iter().enumerate() {
+        bytes[i * 4..(i + 1) * 4].copy_from_slice(&elem.as_canonical_u32().to_le_bytes());
+    }
+    bytes
 }

@@ -5,13 +5,25 @@ name = "jwt-program"
 version = "0.1.0"
 edition = "2021"
 
+# SP1 is pinned at 5.0.x: sp1-solana (the only alt_bn128-syscall Groth16
+# verifier for Solana) only parses the classic 260-byte proof format. SP1 v6
+# emits 356-byte gnark-commitment proofs it cannot verify. Revisit when
+# https://github.com/succinctlabs/sp1-solana gains v6 support.
 [dependencies]
 sp1-zkvm = "=5.0.0"
 sp1-primitives = "=5.0.0"
-rsa = "0.9.6"
+rsa = "=0.9.6"
 sha2 = { version = "0.10.8", features = ["oid"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 base64 = "0.22.1"
 p3-baby-bear = "0.2.3-succinct"
 p3-field = "0.2.3-succinct"
+
+# SP1 precompile-accelerated forks: RSA modpow and SHA-256 run as syscalls
+# instead of pure RISC-V, cutting proving cycles ~6x. Tags are the oldest
+# SP1 version with compatible syscall semantics (sha2 has no 5.0.0 tag; the
+# 4.0.0 tag is the one SP1 5.x documents).
+[patch.crates-io]
+rsa = { git = "https://github.com/sp1-patches/RustCrypto-RSA", tag = "patch-0.9.6-sp1-5.0.0" }
+sha2 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", tag = "patch-sha2-0.10.8-sp1-4.0.0" }
