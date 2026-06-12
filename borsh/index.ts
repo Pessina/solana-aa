@@ -5,9 +5,21 @@ export interface WalletType {
   Ethereum: Uint8Array;
 }
 
-export interface Identity {
-  Wallet: WalletType;
+export interface WebAuthnAuthenticator {
+  key_id: string;
+  compressed_public_key: string | null;
 }
+
+export interface OidcIdentity {
+  iss: string;
+  aud: string;
+  email_hash: Uint8Array;
+}
+
+export type Identity =
+  | { Wallet: WalletType }
+  | { WebAuthn: WebAuthnAuthenticator }
+  | { Oidc: OidcIdentity };
 
 export interface IdentityPermissions {
   enable_act_as: boolean;

@@ -14,3 +14,4 @@ export const SOLANA_PRE_COMPILED_ERRORS = {
 
 export const ABSTRACT_ACCOUNT_SEED = Buffer.from("abstract_account");
 export const ACCOUNT_MANAGER_SEED = Buffer.from("account_manager");
+export const OIDC_KEY_REGISTRY_SEED = Buffer.from("oidc_key_registry");
