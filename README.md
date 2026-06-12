@@ -16,7 +16,8 @@ Signature verification is delegated to Solana's native precompiles rather than d
 |---|---|---|---|
 | Ethereum wallet | secp256k1 + keccak256 ("ek256") | [secp256k1 precompile](https://docs.anza.xyz/runtime/programs#secp256k1-program) | Verification + execution |
 | WebAuthn passkey | secp256r1 (P-256) + SHA-256 | [secp256r1 precompile](https://docs.anza.xyz/runtime/programs#secp256r1-program) | Verification only |
-| OIDC (Google) | RSA-2048 PKCS#1 v1.5 + SHA-256 (RS256) | `big_mod_exp` syscall / `rsa` crate | PoC, localnet only |
+| OIDC | RS256 JWT inside an SP1 zkVM proof | Groth16 over [alt_bn128 syscalls](https://docs.anza.xyz/proposals/precompiles) (`sp1-solana`) | Verification + execution |
+| OIDC (legacy PoC) | RSA-2048 PKCS#1 v1.5 + SHA-256 (RS256) | `big_mod_exp` syscall / `rsa` crate | Dead end, localnet only |
 
 The pattern is the standard precompile + instruction introspection flow: the client places the precompile verification instruction immediately before the program instruction in the same transaction. If the signature is invalid the runtime aborts the whole transaction, so by the time the program runs, the signature is known-good. The program then reads the precompile instruction back through the instructions sysvar to learn *what* was verified (signer + message) and uses that as the authenticated caller identity.
 
@@ -61,7 +62,9 @@ WebAuthn has the verification half implemented ([`contract/auth/secp256r1_sha256
 |---|---|
 | `init_contract` / `close_contract` | Create / close the `AccountManager` singleton |
 | `create_account` | Create an `AbstractAccount` with its first identity. Deliberately unauthenticated: anyone can create an account, but only its registered identities can control it |
-| `execute_ek256` | Main entrypoint — verify an Ethereum-signed `Transaction` and dispatch its action |
+| `execute_ek256` | Execution entrypoint — verify an Ethereum-signed `Transaction` and dispatch its action |
+| `execute_zk_oidc` | Execution entrypoint — verify an SP1 Groth16 proof of an OIDC JWT, check transaction binding and key registry, dispatch the action |
+| `init_oidc_registry` / `add_oidc_key` / `remove_oidc_key` / `close_oidc_registry` | Authority-managed registry pinning the OIDC provider signing keys (JWKS) accepted by `execute_zk_oidc` |
 | `delete_account` / `add_identity` / `remove_identity` | Direct account mutations that **bypass signature auth** — development helpers only, must be removed or secured before any real deployment |
 | `verify_eth` / `get_eth_data` | Debug helpers for secp256k1 precompile introspection |
 | `verify_webauthn` / `get_webauthn_data` | Same for the secp256r1 precompile |
@@ -72,15 +75,31 @@ WebAuthn has the verification half implemented ([`contract/auth/secp256r1_sha256
 
 [`contract/transaction_buffer.rs`](programs/solana-aa/src/contract/transaction_buffer.rs) implements chunked storage for payloads that exceed Solana's ~1232-byte transaction size limit (e.g. OIDC JWTs). Data is split into ≤900-byte chunks and written across multiple transactions into a per-payer PDA keyed by `data_id`, with a hash of the full dataset for integrity. Current implementation loads the whole chunk vector on the heap, so it is bounded by Solana's 32 KB heap limit — zero-copy accounts are the planned fix.
 
-### OIDC / RSA verification (PoC)
+### ZK OIDC execution (`execute_zk_oidc`)
 
-Two proof-of-concept paths for verifying Google OIDC JWT signatures (RS256) on-chain, both currently dead ends outside localnet ([`contract/auth/rsa`](programs/solana-aa/src/contract/auth/rsa), [`tests/rsa/README.md`](tests/rsa/README.md)):
+OIDC tokens (e.g. Google sign-in) authorize transactions through a zero-knowledge proof instead of on-chain RSA, since direct RSA verification is not viable on Solana (see the legacy PoC below). The JWT is verified inside an SP1 zkVM guest program ([`zk/jwt-program`](zk/jwt-program)) and only a 260-byte Groth16 proof goes on-chain, verified via the alt_bn128 syscalls (`sp1-solana`) — which, unlike `big_mod_exp`, are enabled on mainnet.
+
+The guest program verifies the RS256 signature against a caller-supplied RSA key and commits public outputs: Poseidon2 hashes of the email and of the signing key (the raw email never appears on-chain), plus the `iss`, `aud` and `nonce` claims. It fails closed — no proof exists for an invalid JWT. [`contract/auth/zk_oidc.rs`](programs/solana-aa/src/contract/auth/zk_oidc.rs) then enforces three bindings:
+
+1. **Guest binding** — the Groth16 proof must match the pinned `JWT_VKEY_HASH`, so only the exact audited guest binary counts. Regenerate with `cd zk/script && cargo run --release -- vkey` after any guest change.
+2. **Key binding** — the committed signing-key hash must exist in the `OidcKeyRegistry` PDA for that issuer. The registry is authority-managed (`init_oidc_registry` / `add_oidc_key` / `remove_oidc_key`) and stands in for the provider's JWKS endpoint, since anyone can generate a valid proof against a self-chosen key.
+3. **Transaction binding** — the JWT `nonce` claim must equal `hex(sha256(borsh(Transaction)))`. The client puts that hash into the OAuth request, so the provider-signed token authorizes exactly one transaction; the account nonce then prevents replay, exactly as in `execute_ek256`.
+
+The OIDC identity stored on the account is `(iss, aud, email_hash)` — binding to `aud` prevents tokens minted by a different OAuth client for the same email from controlling the identity.
+
+Costs (measured): ~4–5 min proving on CPU (`zk/script`, Docker required for the Groth16 wrapper), 260-byte proof, verification fits in a 500k CU budget. Tests use a committed golden fixture (`tests/fixtures/`) generated from a self-signed JWT, so `anchor test` needs neither the SP1 toolchain nor Docker.
+
+Known limitations of this path: proving latency makes it unsuitable for interactive signing today; JWT `exp`/`iat` are not validated (the transaction binding + account nonce already make a token single-use); the vkey and registry lifecycles need governance before any real deployment.
+
+### Legacy OIDC / RSA verification (PoC)
+
+Two earlier attempts at verifying RS256 directly on-chain, kept for reference, both dead ends outside localnet ([`contract/auth/rsa`](programs/solana-aa/src/contract/auth/rsa), [`tests/rsa/README.md`](tests/rsa/README.md)):
 
 - **`rsa_native`** — uses the `big_mod_exp` syscall. Works on localnet, but the syscall is not enabled on mainnet/devnet ([solana-labs/solana#32520](https://github.com/solana-labs/solana/pull/32520)).
 - **`rsa_rsa_crate`** — pure-Rust modular exponentiation via the `rsa` crate. Exceeds the compute unit limit.
 - Splitting verification across multiple transactions was also tried and removed — it exceeds the heap limit.
 
-Tracked in [#13](https://github.com/Pessina/solana-aa/issues/13). Google's JWKS public keys are currently hardcoded in [`constants.rs`](programs/solana-aa/src/contract/auth/rsa/constants.rs); a real implementation would need an oracle/governance flow to keep them rotated.
+Tracked in [#13](https://github.com/Pessina/solana-aa/issues/13). The ZK path above supersedes this approach.
 
 ## Known gaps
 
@@ -101,24 +120,30 @@ programs/solana-aa/src/
 ├── contract/
 │   ├── accounts.rs              # Abstract account creation
 │   ├── contract_lifecycle.rs    # AccountManager init/close
+│   ├── oidc_registry.rs         # OIDC signing-key registry (JWKS pinning)
 │   ├── transaction_buffer.rs    # Chunked storage for large payloads
 │   ├── auth/
 │   │   ├── ek256.rs             # secp256k1 (Ethereum) precompile introspection
 │   │   ├── secp256r1_sha256.rs  # secp256r1 (WebAuthn) precompile introspection
-│   │   └── rsa/                 # OIDC RSA verification PoC (localnet only)
+│   │   ├── zk_oidc.rs           # SP1 Groth16 verification of the JWT guest program
+│   │   └── rsa/                 # Legacy OIDC RSA PoC (localnet only, superseded)
 │   └── transaction/
-│       ├── execute.rs           # execute_ek256: authenticate → validate → dispatch
+│       ├── execute.rs           # execute_ek256 / execute_zk_oidc → validate → dispatch
 │       └── validation.rs        # Identity membership + nonce + account binding
 ├── types/
 │   ├── account.rs               # AbstractAccount (nonce, identities, realloc)
 │   ├── account_manager.rs       # Sequential account-ID counter
-│   ├── identity/                # Identity enum: Wallet (Ethereum), WebAuthn
+│   ├── identity/                # Identity enum: Wallet (Ethereum), WebAuthn, Oidc
+│   ├── oidc_key_registry.rs     # Registry account: authority + (iss, pk_hash) entries
 │   └── transaction/             # Transaction { account_id, nonce, action }
 └── utils/pda.rs                 # PDA realloc/close helpers with rent accounting
 
-borsh/      # TS Borsh schemas mirroring the on-chain types
-utils/      # TS client helpers: precompile instruction builders, signers, PDAs
-tests/      # Integration tests (ts-mocha against a local validator)
+zk/jwt-program/   # SP1 zkVM guest: verifies the RS256 JWT, commits public outputs
+zk/script/        # Host tooling: vkey printing + golden fixture generation
+borsh/            # TS Borsh schemas mirroring the on-chain types
+utils/            # TS client helpers: precompile instruction builders, signers, PDAs
+tests/            # Integration tests (ts-mocha against a local validator)
+tests/fixtures/   # Committed SP1 Groth16 golden fixtures
 ```
 
 ## Development
@@ -132,6 +157,14 @@ anchor test      # builds, deploys to a local validator, runs all specs
 yarn lint        # prettier check
 ```
 
+Regenerating ZK artifacts additionally requires the [SP1 toolchain](https://docs.succinct.xyz/docs/sp1/getting-started/install) (`cargo prove install-toolchain`) and Docker (Groth16 wrapper):
+
+```bash
+cd zk/script
+cargo run --release -- vkey      # guest vkey hash, pinned in contract/auth/zk_oidc.rs
+cargo run --release -- fixture --out ../../tests/fixtures/zk-oidc-add-identity.json
+```
+
 ### Test suite
 
 | Spec | Covers |
@@ -140,7 +173,8 @@ yarn lint        # prettier check
 | [`tests/execute_ek256.spec.ts`](tests/execute_ek256.spec.ts) | End-to-end signed-transaction execution with Ethereum keys |
 | [`tests/borsh-ek256-auth.spec.ts`](tests/borsh-ek256-auth.spec.ts) | secp256k1 precompile verification and introspection |
 | [`tests/secp256r1-sha256-auth.spec.ts`](tests/secp256r1-sha256-auth.spec.ts) | WebAuthn (P-256) verification, precompile and program error cases |
+| [`tests/zk-oidc.spec.ts`](tests/zk-oidc.spec.ts) | ZK OIDC execution against the golden Groth16 fixture: happy path, replay, transaction-binding, registry and identity-membership rejections |
 | [`tests/transaction-buffer.spec.ts`](tests/transaction-buffer.spec.ts) | Chunked storage lifecycle |
-| [`tests/rsa/*.spec.ts`](tests/rsa) | OIDC RSA verification PoCs (localnet only) |
+| [`tests/rsa/*.spec.ts`](tests/rsa) | Legacy OIDC RSA verification PoCs (localnet only) |
 
 The Ethereum test keys are the standard Hardhat/Anvil development accounts.
