@@ -87,7 +87,7 @@ The guest program verifies the RS256 signature against a caller-supplied RSA key
 
 The OIDC identity stored on the account is `(iss, aud, email_hash)` — binding to `aud` prevents tokens minted by a different OAuth client for the same email from controlling the identity.
 
-Costs (measured): ~4–5 min proving on CPU (`zk/script`, Docker required for the Groth16 wrapper), 260-byte proof, verification fits in a 500k CU budget. Tests use a committed golden fixture (`tests/fixtures/`) generated from a self-signed JWT, so `anchor test` needs neither the SP1 toolchain nor Docker.
+Costs (measured, see [`zk/BENCHMARK.md`](zk/BENCHMARK.md)): ~1.37M zkVM cycles per JWT (7.5x below the unoptimized port thanks to SP1's precompile-accelerated `rsa`/`sha2` forks), ~3.7 min CPU proving (`zk/script`, Docker required for the Groth16 wrapper), 260-byte proof, verification fits in a 500k CU budget. SP1 is pinned at 5.0.x until [`sp1-solana`](https://github.com/succinctlabs/sp1-solana) can verify the v6 proof format. Tests use a committed golden fixture (`tests/fixtures/`) generated from a self-signed JWT, so `anchor test` needs neither the SP1 toolchain nor Docker.
 
 Known limitations of this path: proving latency makes it unsuitable for interactive signing today; JWT `exp`/`iat` are not validated (the transaction binding + account nonce already make a token single-use); the vkey and registry lifecycles need governance before any real deployment.
 
