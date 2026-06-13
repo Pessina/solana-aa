@@ -78,7 +78,7 @@ WebAuthn has the verification half implemented ([`contract/auth/secp256r1_sha256
 
 OIDC tokens (e.g. Google sign-in) authorize transactions through a zero-knowledge proof instead of on-chain RSA, since direct RSA verification is not viable on Solana (see the legacy PoC below). The JWT is verified inside an SP1 zkVM guest program ([`zk/jwt-program`](zk/jwt-program)) and only a 260-byte Groth16 proof goes on-chain, verified via the alt_bn128 syscalls (`sp1-solana`) — which, unlike `big_mod_exp`, are enabled on mainnet.
 
-The guest program verifies the RS256 signature against a caller-supplied RSA key and commits public outputs: Poseidon2 hashes of the email and of the signing key (the raw email never appears on-chain), plus the `iss`, `aud` and `nonce` claims. It fails closed — no proof exists for an invalid JWT. [`contract/auth/zk_oidc.rs`](programs/solana-aa/src/contract/auth/zk_oidc.rs) then enforces three bindings:
+The guest program verifies the RS256 signature against a caller-supplied RSA key and commits public outputs: SHA-256 hashes of the email and of the signing key (the raw email never appears on-chain), plus the `iss`, `aud` and `nonce` claims. It fails closed — no proof exists for an invalid JWT. [`contract/auth/zk_oidc.rs`](programs/solana-aa/src/contract/auth/zk_oidc.rs) then enforces three bindings:
 
 1. **Guest binding** — the Groth16 proof must match the pinned `JWT_VKEY_HASH`, so only the exact audited guest binary counts. Regenerate with `cd zk/script && cargo run --release -- vkey` after any guest change.
 2. **Key binding** — the committed signing-key hash must exist in the `OidcKeyRegistry` PDA for that issuer. The registry is authority-managed (`init_oidc_registry` / `add_oidc_key` / `remove_oidc_key`) and stands in for the provider's JWKS endpoint, since anyone can generate a valid proof against a self-chosen key.
@@ -86,9 +86,9 @@ The guest program verifies the RS256 signature against a caller-supplied RSA key
 
 The OIDC identity stored on the account is `(iss, aud, email_hash)` — binding to `aud` prevents tokens minted by a different OAuth client for the same email from controlling the identity.
 
-Costs (measured, see [`zk/BENCHMARK.md`](zk/BENCHMARK.md)): ~1.37M zkVM cycles per JWT (7.5x below the unoptimized port thanks to SP1's precompile-accelerated `rsa`/`sha2` forks), ~3.7 min CPU proving (`zk/script`, Docker required for the Groth16 wrapper), 260-byte proof, verification fits in a 500k CU budget. SP1 is pinned at 5.0.x until [`sp1-solana`](https://github.com/succinctlabs/sp1-solana) can verify the v6 proof format. Tests use a committed golden fixture (`tests/fixtures/`) generated from a self-signed JWT, so `anchor test` needs neither the SP1 toolchain nor Docker.
+Costs (measured, see [`zk/BENCHMARK.md`](zk/BENCHMARK.md)): ~1.02M zkVM cycles per JWT (10x below the unoptimized port — SP1's precompile-accelerated `rsa`/`sha2` forks plus SHA-256 identity hashing; `rsa_verify` is now 94% of cycles, the RS256 floor), ~3.4 min CPU proving (`zk/script`, Docker required for the Groth16 wrapper), 260-byte proof, verification fits in a 500k CU budget. SP1 is pinned at 5.0.x until [`sp1-solana`](https://github.com/succinctlabs/sp1-solana) can verify the v6 proof format. Tests use a committed golden fixture (`tests/fixtures/`) generated from a self-signed JWT, so `anchor test` needs neither the SP1 toolchain nor Docker.
 
-Known limitations of this path: proving latency makes it unsuitable for interactive signing today; JWT `exp`/`iat` are not validated (the transaction binding + account nonce already make a token single-use); the vkey and registry lifecycles need governance before any real deployment.
+Known limitations of this path: local CPU proving latency (~3.4 min) makes it unsuitable for interactive signing today — production offloads to the [Succinct Prover Network](https://docs.succinct.xyz) (`SP1_PROVER=network`) with no code change; JWT `exp`/`iat` are not validated (the transaction binding + account nonce already make a token single-use); the vkey and registry lifecycles need governance before any real deployment.
 
 ### Removed: direct on-chain RSA verification
 
