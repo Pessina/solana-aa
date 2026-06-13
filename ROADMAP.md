@@ -24,8 +24,11 @@ What makes the account useful beyond managing itself.
 - [ ] **`AddIdentityWithAuth`.** Adding an identity should optionally require proof of ownership of the identity being added (its own signature over `account_id`, nonce, action and permissions), preventing unilateral grants and binding the new identity to this specific account (design sketched in [`transaction.rs`](programs/solana-aa/src/types/transaction/transaction.rs)).
 - [ ] **Transaction expiration.** Add a validity window to `Transaction` so stale signed messages cannot be executed later.
 - [ ] **Multi-signature / threshold authentication.** Precompile introspection currently rejects instructions carrying more than one signature; support N-of-M across an account's identities.
-- [ ] **OIDC as a first-class identity.** On-chain verification is blocked (see open questions), but the identity model can be made ready: issuer + audience + subject as the identity key, JWT `nonce` bound to the transaction hash.
-- [ ] **JWKS key management.** Google's RSA keys are hardcoded in [`constants.rs`](programs/solana-aa/src/contract/auth/rsa/constants.rs); production needs an oracle/governance flow that follows provider key rotation.
+- [x] **OIDC as a first-class identity.** Shipped: `Identity::Oidc(iss, aud, email_hash)` authorized by an on-chain Groth16 proof of an SP1 zkVM JWT verification, with the `nonce` claim bound to the transaction hash ([`zk_oidc.rs`](programs/solana-aa/src/contract/auth/zk_oidc.rs), [`zk/`](zk)). Remaining hardening:
+  - Key the identity on the stable `sub` claim and require `email_verified` — `email` is mutable/reassignable, so it is a weaker user key.
+  - Validate the JWT `exp` in-circuit; today only the transaction + account-nonce binding makes a token single-use.
+  - `sha256(email)` is unsalted and reversible for known addresses — a blinded commitment would make the on-chain identity private, not merely pseudonymous.
+- [ ] **Automated JWKS key management & registry governance.** The on-chain [`OidcKeyRegistry`](programs/solana-aa/src/types/oidc_key_registry.rs) pins provider `(iss, pk_hash)` keys and is authority-managed ([`oidc_registry.rs`](programs/solana-aa/src/contract/oidc_registry.rs)), but the authority is a single trusted signer that must track provider rotation by hand — a stale or malicious authority can lock out or forge identities. Production needs an oracle/governance flow: multisig authority plus automated JWKS sync.
 
 ## P2 — Account features
 
@@ -48,9 +51,6 @@ What makes the account useful beyond managing itself.
 
 ## Open questions
 
-- **On-chain RSA verification has no viable path today** ([#13](https://github.com/Pessina/solana-aa/issues/13)): the `big_mod_exp` syscall is not enabled on mainnet/devnet ([solana-labs/solana#32520](https://github.com/solana-labs/solana/pull/32520)), the pure-Rust `rsa` crate exceeds the compute limit, and splitting verification across transactions exceeds the heap. Candidate alternatives, roughly by practicality:
-  1. Wait for (or advocate) syscall enablement.
-  2. ZK proof of JWT verification checked on-chain — trades prover infrastructure for affordable on-chain cost.
-  3. Trusted attestation: an off-chain service verifies the JWT and co-signs with a key the program trusts — simplest to ship, weakest trust model.
+- **On-chain RSA verification — resolved via ZK** ([#13](https://github.com/Pessina/solana-aa/issues/13)): direct on-chain RS256 is still non-viable (`big_mod_exp` remains mainnet-inactive, [solana-labs/solana#32520](https://github.com/solana-labs/solana/pull/32520); the pure-Rust `rsa` crate exceeds the compute and heap limits), so we shipped candidate option 2 — an SP1 zkVM proof of JWT verification checked on-chain via the alt_bn128 syscalls ([`zk_oidc.rs`](programs/solana-aa/src/contract/auth/zk_oidc.rs)). The trusted-attestation fallback (an off-chain co-signer) was not pursued. The trade-off it introduces is prover infrastructure: local proving is ~3.4 min, so production would offload to the Succinct Prover Network.
 - **Nonce model vs. parallelism.** A single sequential `u128` nonce serializes all of an account's transactions; if concurrent submission matters, consider nonce spaces or expiring nonces.
 - **Account discovery by identity.** Finding the accounts an identity controls requires scanning sequential IDs today; a reverse-index PDA keyed by identity hash would make lookups O(1) at the cost of extra rent and bookkeeping.
