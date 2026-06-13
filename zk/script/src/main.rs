@@ -155,6 +155,19 @@ fn fixture(
         let (mut public_values, report) = client.execute(JWT_PROGRAM_ELF, &stdin).run()?;
         let outputs: PublicOutputs = public_values.read();
         println!("cycles: {}", report.total_instruction_count());
+        // Confirm the RSA/SHA precompiles are actually firing — a zero
+        // U256XU2048_MUL count would mean the patch isn't wired and the modexp
+        // is running as pure-Rust bignum (~5-6M cycles instead of ~967k).
+        let mut syscalls: Vec<_> = report
+            .syscall_counts
+            .iter()
+            .filter_map(|(k, &v)| if v > 0 { Some((k, v)) } else { None })
+            .collect();
+        syscalls.sort_by_key(|&(_, v)| std::cmp::Reverse(v));
+        println!("syscalls:");
+        for (code, count) in &syscalls {
+            println!("  {code:?}: {count}");
+        }
         print_outputs(&outputs);
         anyhow::ensure!(outputs.nonce == jwt_nonce, "guest nonce mismatch");
         return Ok(());

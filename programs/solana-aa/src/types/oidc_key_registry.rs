@@ -18,8 +18,8 @@ pub struct OidcKeyRegistry {
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone)]
 pub struct OidcKeyEntry {
     pub iss: String,
-    /// Poseidon2 hash of the provider RSA public key (SPKI DER), as committed
-    /// by the guest program and converted with `poseidon_to_bytes`.
+    /// SHA-256 hash of the provider RSA public key (SPKI DER), as committed
+    /// by the guest program.
     pub pk_hash: [u8; 32],
 }
 

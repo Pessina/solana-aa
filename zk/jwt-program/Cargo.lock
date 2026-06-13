@@ -305,13 +305,10 @@ name = "jwt-program"
 version = "0.1.0"
 dependencies = [
  "base64",
- "p3-baby-bear",
- "p3-field",
  "rsa",
  "serde",
  "serde_json",
  "sha2",
- "sp1-primitives",
  "sp1-zkvm",
 ]
 

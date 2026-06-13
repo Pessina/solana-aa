@@ -7,7 +7,7 @@ use sp1_solana::verify_proof;
     ZK OIDC authentication.
 
     An RS256 JWT is verified inside the SP1 zkVM guest program (`zk/jwt-program`),
-    which commits privacy-preserving public outputs (Poseidon2 hashes of the email
+    which commits privacy-preserving public outputs (SHA-256 hashes of the email
     and signing key, plus iss/aud/nonce). The Groth16 wrapper proof is verified
     here through the alt_bn128 syscalls (sp1-solana), which — unlike `big_mod_exp`
     used by the legacy `rsa` PoC — are enabled on mainnet.
@@ -27,7 +27,7 @@ use sp1_solana::verify_proof;
 /// Verification key hash of `zk/jwt-program`.
 /// Regenerate with `cd zk/script && cargo run --release -- vkey` after any guest change.
 pub const JWT_VKEY_HASH: &str =
-    "0x006bd75e8ea5016ccd55ce8e700223416405ae32e9338be6ef875f2668258e3c";
+    "0x004dec4cfca4ca67f42cdbfffdeb2abb12aa0fb08305bdde847de33295b6fb23";
 
 /// SP1 universal Groth16 verification key, copied from the prover's circuit
 /// artifacts (`~/.sp1/circuits/groth16/<version>/groth16_vk.bin`). Must match

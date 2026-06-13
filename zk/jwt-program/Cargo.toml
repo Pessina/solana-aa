@@ -11,14 +11,11 @@ edition = "2021"
 # https://github.com/succinctlabs/sp1-solana gains v6 support.
 [dependencies]
 sp1-zkvm = "=5.0.0"
-sp1-primitives = "=5.0.0"
 rsa = "=0.9.6"
 sha2 = { version = "0.10.8", features = ["oid"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 base64 = "0.22.1"
-p3-baby-bear = "0.2.3-succinct"
-p3-field = "0.2.3-succinct"
 
 # SP1 precompile-accelerated forks: RSA modpow and SHA-256 run as syscalls
 # instead of pure RISC-V, cutting proving cycles ~6x. Tags are the oldest
