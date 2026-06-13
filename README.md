@@ -67,7 +67,6 @@ WebAuthn has the verification half implemented ([`contract/auth/secp256r1_sha256
 | `delete_account` / `add_identity` / `remove_identity` | Direct account mutations that **bypass signature auth** — development helpers only, must be removed or secured before any real deployment |
 | `verify_eth` / `get_eth_data` | Debug helpers for secp256k1 precompile introspection |
 | `verify_webauthn` / `get_webauthn_data` | Same for the secp256r1 precompile |
-| `verify_oidc_rsa_native` / `verify_oidc_rsa_crate` | Experimental RSA verification of OIDC token signatures |
 | `init_storage` / `store_chunk` / `retrieve_chunk` / `get_data_metadata` / `close_storage` | Transaction buffer (below) |
 
 ### Transaction buffer
