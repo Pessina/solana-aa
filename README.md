@@ -171,8 +171,15 @@ cargo run --release -- fixture --out ../../tests/fixtures/zk-oidc-add-identity.j
 
 ### Mainnet feature parity
 
-By default `solana-test-validator` enables **all** runtime features, including ones inactive on mainnet — which makes mainnet-incompatible code look fine (it hid both the `big_mod_exp` dead end and the deploy blocker above). This repo pins the test validator to mainnet's feature set: `[test.validator] deactivate_feature` in [`Anchor.toml`](Anchor.toml) lists every mainnet-inactive feature, so plain `anchor test` runs under real mainnet conditions. The full suite passes there — the secp256k1/secp256r1 precompiles and the alt_bn128 syscalls used by ZK OIDC are all mainnet-active.
+`solana-test-validator` enables **all** runtime features by default, including ones still inactive on mainnet — so a program that depends on a not-yet-activated feature can pass `anchor test` yet fail on mainnet. The default run does not reflect mainnet's feature set.
 
-Mainnet activations move over time; refresh the list with `solana feature status -um | grep inactive | awk '{print $1}'`.
+To test under mainnet's actual features, point a fresh validator at mainnet and copy its live feature set with `--clone-feature-set`, then run the suite against it (Anchor can't pass that flag from `Anchor.toml`, so start the validator yourself):
+
+```bash
+solana-test-validator --reset --url https://api.mainnet-beta.solana.com --clone-feature-set
+anchor test --skip-local-validator
+```
+
+This mirrors mainnet at the moment you run it, with nothing to maintain. Run it before any devnet/mainnet deploy; a public RPC may be rate-limited, so use a private endpoint if startup is slow.
 
 The Ethereum test keys are the standard Hardhat/Anvil development accounts.
