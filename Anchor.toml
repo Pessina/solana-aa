@@ -8,6 +8,7 @@ seeds = true
 
 [programs.localnet]
 solana_aa = "2PYNfKSoM7rFJeMuvEidASxgpdPAXYascVDmH6jpBa7o"
+mock_chain_signatures = "F4KaC593TkwxSgrej1q1QiqHsmeSXmJBniPTBNjUtuou"
 
 [registry]
 url = "https://api.apr.dev"

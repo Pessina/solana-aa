@@ -42,10 +42,24 @@ export interface RemoveIdentityAction {
   RemoveIdentity: Identity;
 }
 
+export interface SignRequest {
+  payload: Uint8Array;
+  key_version: number;
+  path: string;
+  algo: string;
+  dest: string;
+  params: string;
+}
+
+export interface SignAction {
+  Sign: SignRequest;
+}
+
 export type Action =
   | RemoveAccountAction
   | AddIdentityAction
-  | RemoveIdentityAction;
+  | RemoveIdentityAction
+  | SignAction;
 
 export interface Transaction {
   account_id: bigint;

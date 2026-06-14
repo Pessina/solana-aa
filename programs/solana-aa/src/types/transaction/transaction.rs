@@ -65,7 +65,21 @@ pub enum Action {
     // AddIdentityWithAuth(AddIdentityWithAuth),
     AddIdentity(IdentityWithPermissions),
     RemoveIdentity(Identity),
-    // Sign(SignPayloadsRequest),
+    Sign(SignRequest),
+}
+
+/// Request forwarded to the Sig Network chain-signatures `sign` instruction.
+/// Field order matches the `sign` argument order, so its Borsh encoding is the
+/// instruction-argument encoding. Lives inside the signed `Transaction`, so the
+/// per-method binding + account nonce already authorize exactly this request.
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
+pub struct SignRequest {
+    pub payload: [u8; 32],
+    pub key_version: u32,
+    pub path: String,
+    pub algo: String,
+    pub dest: String,
+    pub params: String,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]

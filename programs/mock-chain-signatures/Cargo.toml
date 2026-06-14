@@ -1,0 +1,20 @@
+[package]
+name = "mock-chain-signatures"
+version = "0.1.0"
+description = "Test-only mock of the Sig Network chain-signatures sign instruction"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "mock_chain_signatures"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build"]
+
+[dependencies]
+anchor-lang = "0.31.1"
