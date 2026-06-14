@@ -1,20 +1,24 @@
 use crate::{
     contract::auth::{
         ek256::get_ek256_data_impl,
+        secp256r1_sha256::get_secp256r1_sha256_data_impl,
         zk_oidc::{transaction_nonce_hex, verify_zk_oidc_proof, Sp1Groth16Proof},
     },
     pda_seeds::{ABSTRACT_ACCOUNT_SEED, ACCOUNT_MANAGER_SEED, OIDC_KEY_REGISTRY_SEED},
     types::{
         account::{AbstractAccount, AbstractAccountOperationAccounts, AccountId},
         account_manager::AccountManager,
-        identity::{oidc::OidcIdentity, wallet::WalletType, Identity},
+        identity::{
+            oidc::OidcIdentity, wallet::WalletType, webauthn::WebAuthnAuthenticator, Identity,
+        },
         oidc_key_registry::OidcKeyRegistry,
-        transaction::transaction::{Action, SignRequest, Transaction},
+        transaction::transaction::{Action, SignRequest, Transaction, WebAuthnAuthData},
     },
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
 use anchor_lang::solana_program::program::invoke_signed;
+use base64::Engine;
 
 use super::sign::build_sign_instruction;
 use super::validation::is_transaction_authorized;
@@ -150,6 +154,116 @@ pub fn execute_zk_oidc_impl<'info>(
     )
 }
 
+#[derive(Accounts)]
+#[instruction(account_id: AccountId)]
+pub struct ExecuteWebauthn<'info> {
+    #[account(mut)]
+    pub signer: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [ABSTRACT_ACCOUNT_SEED, account_id.to_le_bytes().as_ref()],
+        bump = abstract_account.bump,
+    )]
+    pub abstract_account: Account<'info, AbstractAccount>,
+
+    #[account(
+        seeds = [ACCOUNT_MANAGER_SEED],
+        bump = account_manager.bump,
+    )]
+    pub account_manager: Account<'info, AccountManager>,
+
+    pub system_program: Program<'info, System>,
+
+    /// CHECK: Instructions sysvar, verified by address
+    #[account(address = solana_program::sysvar::instructions::id())]
+    pub instructions: AccountInfo<'info>,
+}
+
+pub fn execute_webauthn_impl<'info>(
+    ctx: Context<'_, '_, '_, 'info, ExecuteWebauthn<'info>>,
+    account_id: AccountId,
+    transaction: Transaction,
+    auth: WebAuthnAuthData,
+) -> Result<()> {
+    use anchor_lang::solana_program::hash::hash as sha256;
+
+    let (pubkey, signed_message) = get_secp256r1_sha256_data_impl(&ctx.accounts.instructions)?;
+
+    // 1. The precompile verified a signature over
+    //    `authenticator_data || sha256(clientDataJSON)`. Re-bind the raw
+    //    client_data + authenticator_data we were handed to that signed message,
+    //    so nothing below trusts unsigned input.
+    let client_data_hash = sha256(auth.client_data.as_bytes());
+    let mut expected = auth.authenticator_data.clone();
+    expected.extend_from_slice(&client_data_hash.to_bytes());
+    require!(expected == signed_message, ErrorCode::WebAuthnMessageMismatch);
+
+    // 2. Parse clientDataJSON as JSON (never template-match — WebAuthn spec).
+    #[derive(serde::Deserialize)]
+    struct ClientData {
+        r#type: String,
+        challenge: String,
+        origin: String,
+    }
+    let client_data: ClientData =
+        serde_json::from_str(&auth.client_data).map_err(|_| ErrorCode::InvalidClientData)?;
+    require!(
+        client_data.r#type == "webauthn.get",
+        ErrorCode::InvalidClientData
+    );
+
+    // 3. Transaction binding: challenge == base64url(sha256(borsh(transaction))).
+    let tx_hash = sha256(&transaction.try_to_vec()?).to_bytes();
+    let challenge = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(client_data.challenge.as_bytes())
+        .map_err(|_| ErrorCode::InvalidClientData)?;
+    require!(challenge == tx_hash, ErrorCode::WebAuthnChallengeMismatch);
+
+    // 4. authenticatorData layout: rpIdHash[0..32], flags[32], counter[33..37].
+    //    Require the user-present (UP) bit so a stored signature can't be replayed
+    //    without an actual authenticator gesture.
+    require!(
+        auth.authenticator_data.len() >= 37,
+        ErrorCode::InvalidClientData
+    );
+    require!(
+        auth.authenticator_data[32] & 0x01 == 0x01,
+        ErrorCode::WebAuthnUserNotPresent
+    );
+    let mut rp_id_hash = [0u8; 32];
+    rp_id_hash.copy_from_slice(&auth.authenticator_data[0..32]);
+
+    // 5. Reconstruct the identity. Equality (pubkey + rpIdHash + origin) is what
+    //    binds this assertion to a registered credential inside
+    //    is_transaction_authorized — a key reused on another origin won't match.
+    let identity = Identity::WebAuthn(WebAuthnAuthenticator {
+        key_id: String::new(),
+        compressed_public_key: Some(format!("0x{}", hex::encode(&pubkey))),
+        rp_id_hash,
+        origin: client_data.origin,
+    });
+
+    is_transaction_authorized(
+        &mut ctx.accounts.abstract_account,
+        account_id,
+        &identity,
+        &transaction,
+    )?;
+
+    dispatch_action(
+        AbstractAccountOperationAccounts {
+            abstract_account: &mut ctx.accounts.abstract_account,
+            signer_info: ctx.accounts.signer.to_account_info(),
+            system_program_info: ctx.accounts.system_program.to_account_info(),
+        },
+        account_id,
+        ctx.accounts.account_manager.chain_signatures_program_id,
+        ctx.remaining_accounts,
+        transaction.action,
+    )
+}
+
 fn dispatch_action<'info>(
     operation_accounts: AbstractAccountOperationAccounts<'_, 'info>,
     account_id: AccountId,
@@ -247,4 +361,12 @@ pub enum ErrorCode {
     InvalidChainSignaturesAccounts,
     #[msg("Provided chain-signatures program does not match the configured deployment id")]
     ChainSignaturesProgramMismatch,
+    #[msg("Reconstructed WebAuthn message does not match the verified signature")]
+    WebAuthnMessageMismatch,
+    #[msg("clientDataJSON challenge does not match the transaction hash")]
+    WebAuthnChallengeMismatch,
+    #[msg("WebAuthn user-present flag not set")]
+    WebAuthnUserNotPresent,
+    #[msg("Malformed clientDataJSON")]
+    InvalidClientData,
 }
