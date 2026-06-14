@@ -8,6 +8,8 @@ export interface WalletType {
 export interface WebAuthnAuthenticator {
   key_id: string;
   compressed_public_key: string | null;
+  rp_id_hash: Uint8Array;
+  origin: string;
 }
 
 export interface OidcIdentity {

@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{
     self,
@@ -9,12 +7,15 @@ use anchor_lang::solana_program::{
 use bytemuck::{Pod, Zeroable};
 use hex;
 
+const SECP256R1_PROGRAM_ID: Pubkey =
+    solana_program::pubkey!("Secp256r1SigVerify1111111111111111111111111");
+
 pub fn verify_secp256r1_sha256_impl(
-    ctx: &Context<VerifyWebauthnSignature>,
+    instructions_sysvar: &AccountInfo<'_>,
     signed_message: Vec<u8>,
     signer_compressed_public_key: String,
 ) -> Result<bool> {
-    let (pubkey_bytes, message_bytes) = get_secp256r1_sha256_data_impl(&ctx)?;
+    let (pubkey_bytes, message_bytes) = get_secp256r1_sha256_data_impl(instructions_sysvar)?;
 
     let expected_pubkey = hex::decode(&signer_compressed_public_key[2..])
         .map_err(|_| ErrorCode::InvalidHexEncoding)?;
@@ -35,10 +36,8 @@ pub fn verify_secp256r1_sha256_impl(
 }
 
 pub fn get_secp256r1_sha256_data_impl(
-    ctx: &Context<VerifyWebauthnSignature>,
+    instructions_sysvar: &AccountInfo<'_>,
 ) -> Result<(Vec<u8>, Vec<u8>)> {
-    let instructions_sysvar = &ctx.accounts.instructions;
-
     let current_index = load_current_index_checked(instructions_sysvar)?;
     if current_index < 1 {
         return Err(ErrorCode::MissingVerificationInstruction.into());
@@ -47,9 +46,7 @@ pub fn get_secp256r1_sha256_data_impl(
     let verification_instruction =
         load_instruction_at_checked((current_index - 1) as usize, instructions_sysvar)?;
 
-    let secp256r1_program_id =
-        Pubkey::from_str("Secp256r1SigVerify1111111111111111111111111").unwrap();
-    if verification_instruction.program_id != secp256r1_program_id {
+    if verification_instruction.program_id != SECP256R1_PROGRAM_ID {
         return Err(ErrorCode::InvalidVerificationInstruction.into());
     }
 
@@ -136,4 +133,6 @@ pub enum ErrorCode {
     PublicKeyMismatch,
     #[msg("Signed data mismatch")]
     SignedDataMismatch,
+    #[msg("Invalid WebAuthn message encoding")]
+    InvalidWebauthnMessage,
 }

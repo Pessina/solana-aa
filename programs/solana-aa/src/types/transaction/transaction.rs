@@ -82,6 +82,15 @@ pub struct SignRequest {
     pub params: String,
 }
 
+/// Auxiliary data for the WebAuthn execute path: the raw clientDataJSON (whose
+/// `challenge` binds the transaction) and the authenticatorData (whose first 32
+/// bytes are the rpIdHash). Both are re-bound to the secp256r1-verified message.
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct WebAuthnAuthData {
+    pub client_data: String,
+    pub authenticator_data: Vec<u8>,
+}
+
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub enum VerificationContext {
     WebAuthn(WebAuthnVerificationContext),

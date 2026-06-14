@@ -17,7 +17,7 @@ use crate::types::{
     account::{AbstractAccount, AbstractAccountOperationAccounts, AccountId},
     identity::*,
     oidc_key_registry::OidcKeyEntry,
-    transaction::transaction::Transaction,
+    transaction::transaction::{Transaction, WebAuthnAuthData},
 };
 
 declare_id!("2PYNfKSoM7rFJeMuvEidASxgpdPAXYascVDmH6jpBa7o");
@@ -109,14 +109,21 @@ pub mod solana_aa {
         signed_message: Vec<u8>,
         signer_compressed_public_key: String,
     ) -> Result<bool> {
-        verify_secp256r1_sha256_impl(&ctx, signed_message, signer_compressed_public_key)
+        verify_secp256r1_sha256_impl(
+            &ctx.accounts.instructions,
+            signed_message,
+            signer_compressed_public_key,
+        )
     }
 
     pub fn get_webauthn_data(ctx: Context<VerifyWebauthnSignature>) -> Result<(String, String)> {
-        let (pubkey_bytes, message_bytes) = get_secp256r1_sha256_data_impl(&ctx)?;
+        let (pubkey_bytes, message_bytes) =
+            get_secp256r1_sha256_data_impl(&ctx.accounts.instructions)?;
         Ok((
             hex::encode(pubkey_bytes),
-            String::from_utf8(message_bytes).unwrap(),
+            String::from_utf8(message_bytes).map_err(|_| {
+                crate::contract::auth::secp256r1_sha256::ErrorCode::InvalidWebauthnMessage
+            })?,
         ))
     }
 
@@ -195,5 +202,14 @@ pub mod solana_aa {
         groth16_proof: Sp1Groth16Proof,
     ) -> Result<()> {
         execute_zk_oidc_impl(ctx, account_id, transaction, groth16_proof)
+    }
+
+    pub fn execute_webauthn<'info>(
+        ctx: Context<'_, '_, '_, 'info, ExecuteWebauthn<'info>>,
+        account_id: AccountId,
+        transaction: Transaction,
+        auth: WebAuthnAuthData,
+    ) -> Result<()> {
+        execute_webauthn_impl(ctx, account_id, transaction, auth)
     }
 }

@@ -1,50 +1,31 @@
 use anchor_lang::prelude::*;
 
-// use crate::traits::path::Path;
-
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct WebAuthnAuthenticator {
     pub key_id: String,
     // The compressed public key is optional since it cannot be obtained during passkey signing.
     // It must be stored during key creation and retrieved during authentication.
     pub compressed_public_key: Option<String>,
-    // Should likely have to include the client_data.origin and authenticators.rpIdHash as the same key-pair can be re-used across different websites.
-    // So if we only check the public key malicious.com would be able to generate a valid signature for example.com if the key-pair is reused.
+    /// sha256(rpId); checked against authenticatorData[0..32] during execute.
+    pub rp_id_hash: [u8; 32],
+    /// Expected clientDataJSON.origin (e.g. "https://example.com"). Binds the
+    /// credential to a single origin so a key reused on another site cannot
+    /// authorize for this account.
+    pub origin: String,
 }
 
-// impl Path for WebAuthnAuthenticator {
-//     fn path(&self) -> String {
-//         format!(
-//             "webauthn/{}",
-//             self.compressed_public_key
-//                 .as_ref()
-//                 .expect("Compressed public key not set for WebAuthn")
-//         )
-//     }
-// }
-
+/// Equality intentionally ignores `key_id` — it cannot be recovered from a
+/// passkey assertion at execute time — and matches on the fields that ARE
+/// re-derivable and security-relevant: the public key, the authenticator's
+/// rpIdHash, and the client-data origin. Because `is_transaction_authorized`
+/// matches identities via this `eq`, requiring all three here is what enforces
+/// the origin/rpIdHash binding on the execute path.
 impl PartialEq for WebAuthnAuthenticator {
     fn eq(&self, other: &Self) -> bool {
-        self.key_id == other.key_id
-            && match (&self.compressed_public_key, &other.compressed_public_key) {
-                (Some(a), Some(b)) => a == b,
-                _ => true,
-            }
+        self.compressed_public_key == other.compressed_public_key
+            && self.rp_id_hash == other.rp_id_hash
+            && self.origin == other.origin
     }
 }
 
 impl Eq for WebAuthnAuthenticator {}
-
-#[derive(AnchorSerialize, AnchorDeserialize)]
-pub struct WebAuthnCredentials {
-    pub signature: String,
-    pub authenticator_data: String,
-    pub client_data: String,
-}
-
-#[derive(AnchorSerialize, AnchorDeserialize)]
-pub struct WebAuthnValidationData {
-    pub signature: String,
-    pub authenticator_data: String,
-    pub client_data: String,
-}
