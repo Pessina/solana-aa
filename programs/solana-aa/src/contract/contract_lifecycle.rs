@@ -42,6 +42,7 @@ pub fn init_contract_impl(
     let account_manager = &mut ctx.accounts.account_manager;
     account_manager.next_account_id = 0;
     account_manager.chain_signatures_program_id = chain_signatures_program_id;
+    account_manager.admin = ctx.accounts.signer.key();
     account_manager.bump = ctx.bumps.account_manager;
 
     Ok(())

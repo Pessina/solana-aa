@@ -17,6 +17,10 @@ pub struct AccountManager {
     /// Deployment config so devnet/mainnet/forks differ without a code change.
     pub chain_signatures_program_id: Pubkey,
 
+    /// Deployment admin (set to the init signer). Only this key may call the
+    /// privileged account-close instruction used for administration/teardown.
+    pub admin: Pubkey,
+
     // PDA discriminator to optimize Anchor account validation
     pub bump: u8,
 }
@@ -29,7 +33,8 @@ impl AccountManager {
 
     pub const INIT_SIZE: usize = Self::PDA_DISCRIMINATOR_SIZE
         + Self::ACCOUNT_ID_SIZE
-        + Self::PUBKEY_SIZE
+        + Self::PUBKEY_SIZE // chain_signatures_program_id
+        + Self::PUBKEY_SIZE // admin
         + Self::BUMP_SIZE;
 
     pub fn increment_next_account_id(&mut self) -> AccountId {

@@ -100,7 +100,8 @@ pub mod solana_aa {
 
     pub fn get_eth_data(ctx: Context<VerifyEthereumSignature>) -> Result<(String, Transaction)> {
         let (eth_address, message) = get_ek256_data_impl(&ctx.accounts.instructions)?;
-        let transaction = Transaction::try_from_slice(&message).unwrap();
+        let transaction = Transaction::try_from_slice(&message)
+            .map_err(|_| crate::contract::auth::ek256::ErrorCode::InvalidInstructionData)?;
         Ok((hex::encode(eth_address), transaction))
     }
 
@@ -135,41 +136,16 @@ pub mod solana_aa {
     }
 
     pub fn delete_account(ctx: Context<ExecuteEk256>, _account_id: AccountId) -> Result<()> {
+        require_keys_eq!(
+            ctx.accounts.signer.key(),
+            ctx.accounts.account_manager.admin,
+            crate::types::account::ErrorCode::Unauthorized
+        );
         AbstractAccount::close_account(AbstractAccountOperationAccounts {
             abstract_account: &mut ctx.accounts.abstract_account,
             signer_info: ctx.accounts.signer.to_account_info(),
             system_program_info: ctx.accounts.system_program.to_account_info(),
         })
-    }
-
-    pub fn add_identity(
-        ctx: Context<ExecuteEk256>,
-        _account_id: AccountId,
-        identity_with_permissions: IdentityWithPermissions,
-    ) -> Result<()> {
-        AbstractAccount::add_identity(
-            AbstractAccountOperationAccounts {
-                abstract_account: &mut ctx.accounts.abstract_account,
-                signer_info: ctx.accounts.signer.to_account_info(),
-                system_program_info: ctx.accounts.system_program.to_account_info(),
-            },
-            identity_with_permissions,
-        )
-    }
-
-    pub fn remove_identity(
-        ctx: Context<ExecuteEk256>,
-        _account_id: AccountId,
-        identity: Identity,
-    ) -> Result<()> {
-        AbstractAccount::remove_identity(
-            AbstractAccountOperationAccounts {
-                abstract_account: &mut ctx.accounts.abstract_account,
-                signer_info: ctx.accounts.signer.to_account_info(),
-                system_program_info: ctx.accounts.system_program.to_account_info(),
-            },
-            &identity,
-        )
     }
 
     pub fn execute_ek256<'info>(

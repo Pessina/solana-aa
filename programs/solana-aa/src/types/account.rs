@@ -36,6 +36,11 @@ impl AbstractAccount {
     const VEC_SIZE: usize = 4;
     const BUMP_SIZE: usize = 1;
 
+    /// Caps on growth so a single account can't be inflated without bound
+    /// (rent griefing / heap pressure). 16 identities is well above real use.
+    const MAX_IDENTITIES: usize = 16;
+    const MAX_ACCOUNT_SIZE: usize = 8 * 1024;
+
     pub const INIT_SIZE: usize =
         Self::PDA_DISCRIMINATOR_SIZE + Self::NONCE_SIZE + Self::VEC_SIZE + Self::BUMP_SIZE;
 
@@ -62,8 +67,14 @@ impl AbstractAccount {
             system_program_info,
         } = abstract_account_operation_accounts;
 
+        require!(
+            abstract_account.identities.len() < Self::MAX_IDENTITIES,
+            ErrorCode::TooManyIdentities
+        );
+
         let account_info = abstract_account.to_account_info();
-        let new_size = account_info.data_len() + identity_with_permissions.byte_size();
+        let new_size = account_info.data_len() + identity_with_permissions.byte_size()?;
+        require!(new_size <= Self::MAX_ACCOUNT_SIZE, ErrorCode::AccountTooLarge);
 
         realloc_account(&account_info, new_size, &signer_info, &system_program_info)?;
 
@@ -85,7 +96,7 @@ impl AbstractAccount {
         } = abstract_account_operation_accounts;
 
         let identity_size = match abstract_account.find_identity(&identity) {
-            Some(identity_with_permissions) => identity_with_permissions.byte_size(),
+            Some(identity_with_permissions) => identity_with_permissions.byte_size()?,
             None => return Err(ErrorCode::IdentityNotFound.into()),
         };
 
@@ -128,4 +139,10 @@ pub struct AbstractAccountOperationAccounts<'a, 'info> {
 pub enum ErrorCode {
     #[msg("Identity not found")]
     IdentityNotFound,
+    #[msg("Account has reached the maximum number of identities")]
+    TooManyIdentities,
+    #[msg("Account would exceed the maximum allowed size")]
+    AccountTooLarge,
+    #[msg("Only the deployment admin may perform this operation")]
+    Unauthorized,
 }

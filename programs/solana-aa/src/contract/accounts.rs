@@ -31,7 +31,7 @@ pub struct CreateAbstractAccount<'info> {
     #[account(
         init,
         payer = signer,
-        space = AbstractAccount::INIT_SIZE + identity_with_permissions.byte_size(),
+        space = AbstractAccount::INIT_SIZE + identity_with_permissions.try_to_vec().map(|v| v.len()).unwrap_or(0),
         seeds = [ABSTRACT_ACCOUNT_SEED, account_manager.next_account_id.to_le_bytes().as_ref()],
         bump,
     )]

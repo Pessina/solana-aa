@@ -10,6 +10,8 @@ import {
   findAccountManagerPDA,
 } from "../utils/program";
 import { buildEthereumIdentity } from "../utils/identity";
+import { executeEk256Action } from "../utils/test-helpers";
+import { privateKeyToAccount } from "viem/accounts";
 
 const ETH_ADDRESS: Hex = "0x71C7656EC7ab88b098defB751B7401B5f6d8976F";
 const ETH_ADDRESS_2: Hex = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
@@ -17,6 +19,11 @@ const ETH_ADDRESS_3: Hex = "0x90F79bf6EB2c4f870365E785982E1f101E93b906";
 const ETH_ADDRESS_4: Hex = "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65";
 const ETH_ADDRESS_5: Hex = "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc";
 const ETH_ADDRESS_6: Hex = "0x976EA74026E726554dB657fA54763abd0C3a0aa9";
+
+// Hardhat account #0 — a known keypair so the authenticated execute path can
+// sign add/remove-identity transactions.
+const HARDHAT_KEY: Hex =
+  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 
 const ETHEREUM_IDENTITY_WITH_PERMISSIONS = buildEthereumIdentity(
   ETH_ADDRESS,
@@ -205,7 +212,9 @@ describe("Accounts", () => {
     );
 
     const createSignature = await program.methods
-      .createAccount(ETHEREUM_IDENTITY_WITH_PERMISSIONS)
+      .createAccount(
+        buildEthereumIdentity(privateKeyToAccount(HARDHAT_KEY).address, null)
+      )
       .rpc();
 
     await confirmTransaction(connection, createSignature);
@@ -219,22 +228,23 @@ describe("Accounts", () => {
       "Signer balance should decrease after creating account"
     );
 
-    const identities = [
-      ETHEREUM_IDENTITY_WITH_PERMISSIONS_2,
-      ETHEREUM_IDENTITY_WITH_PERMISSIONS_3,
-      ETHEREUM_IDENTITY_WITH_PERMISSIONS_4,
-    ];
+    const addedAddresses: Hex[] = [ETH_ADDRESS_2, ETH_ADDRESS_3, ETH_ADDRESS_4];
 
-    for (let i = 0; i < identities.length; i++) {
+    for (let i = 0; i < addedAddresses.length; i++) {
       const balanceBeforeAdd = await connection.getBalance(
         provider.wallet.publicKey
       );
 
-      const addSignature = await program.methods
-        .addIdentity(new BN(0), identities[i])
-        .rpc();
-
-      await confirmTransaction(connection, addSignature);
+      const addSignature = await executeEk256Action(program, {
+        accountId: 0n,
+        ethPrivateKey: HARDHAT_KEY,
+        action: {
+          AddIdentity: {
+            identity: { Wallet: { Ethereum: toBytes(addedAddresses[i]) } },
+            permissions: { enable_act_as: false },
+          },
+        },
+      });
 
       await logComputeUnitsUsed({
         txSignature: addSignature,
@@ -262,16 +272,18 @@ describe("Accounts", () => {
       "Should have 4 identities"
     );
 
-    for (let i = 0; i < identities.length; i++) {
+    for (let i = 0; i < addedAddresses.length; i++) {
       const balanceBeforeRemove = await connection.getBalance(
         provider.wallet.publicKey
       );
 
-      const removeSignature = await program.methods
-        .removeIdentity(new BN(0), identities[i].identity)
-        .rpc();
-
-      await confirmTransaction(connection, removeSignature);
+      const removeSignature = await executeEk256Action(program, {
+        accountId: 0n,
+        ethPrivateKey: HARDHAT_KEY,
+        action: {
+          RemoveIdentity: { Wallet: { Ethereum: toBytes(addedAddresses[i]) } },
+        },
+      });
 
       await logComputeUnitsUsed({
         txSignature: removeSignature,
@@ -301,7 +313,7 @@ describe("Accounts", () => {
     const remainingIdentity = accountInfo.identities[0];
     assert.deepEqual(
       Array.from(remainingIdentity.identity?.wallet?.[0].ethereum?.[0] ?? []),
-      Array.from(toBytes(ETH_ADDRESS)),
+      Array.from(toBytes(privateKeyToAccount(HARDHAT_KEY).address)),
       "Only the original identity should remain"
     );
 
@@ -332,5 +344,48 @@ describe("Accounts", () => {
       .catch(() => null);
 
     assert.isNull(deletedAccountInfo, "Account should have been deleted");
+  });
+
+  it("rejects adding identities beyond the per-account maximum", async () => {
+    await program.methods
+      .createAccount(
+        buildEthereumIdentity(privateKeyToAccount(HARDHAT_KEY).address, null)
+      )
+      .rpc();
+
+    // The account starts with 1 identity and the cap is 16, so 15 adds reach
+    // the cap and the 16th must be rejected. Added addresses are distinct
+    // placeholders (no key needed — the creator authorizes every add).
+    const placeholderAddress = (i: number): Hex =>
+      ("0x" + (i + 1).toString(16).padStart(40, "0")) as Hex;
+
+    for (let i = 0; i < 15; i++) {
+      await executeEk256Action(program, {
+        accountId: 0n,
+        ethPrivateKey: HARDHAT_KEY,
+        action: {
+          AddIdentity: {
+            identity: { Wallet: { Ethereum: toBytes(placeholderAddress(i)) } },
+            permissions: { enable_act_as: false },
+          },
+        },
+      });
+    }
+
+    try {
+      await executeEk256Action(program, {
+        accountId: 0n,
+        ethPrivateKey: HARDHAT_KEY,
+        action: {
+          AddIdentity: {
+            identity: { Wallet: { Ethereum: toBytes(placeholderAddress(15)) } },
+            permissions: { enable_act_as: false },
+          },
+        },
+      });
+      assert.fail("Expected the 16th identity to be rejected");
+    } catch (error: any) {
+      assert.include(error.toString(), "TooManyIdentities");
+    }
   });
 });
