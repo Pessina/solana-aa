@@ -3,9 +3,10 @@ use crate::{
         ek256::get_ek256_data_impl,
         zk_oidc::{transaction_nonce_hex, verify_zk_oidc_proof, Sp1Groth16Proof},
     },
-    pda_seeds::{ABSTRACT_ACCOUNT_SEED, OIDC_KEY_REGISTRY_SEED},
+    pda_seeds::{ABSTRACT_ACCOUNT_SEED, ACCOUNT_MANAGER_SEED, OIDC_KEY_REGISTRY_SEED},
     types::{
         account::{AbstractAccount, AbstractAccountOperationAccounts, AccountId},
+        account_manager::AccountManager,
         identity::{oidc::OidcIdentity, wallet::WalletType, Identity},
         oidc_key_registry::OidcKeyRegistry,
         transaction::transaction::{Action, Transaction},
@@ -29,6 +30,12 @@ pub struct ExecuteEk256<'info> {
     )]
     pub abstract_account: Account<'info, AbstractAccount>,
 
+    #[account(
+        seeds = [ACCOUNT_MANAGER_SEED],
+        bump = account_manager.bump,
+    )]
+    pub account_manager: Account<'info, AccountManager>,
+
     pub system_program: Program<'info, System>,
 
     /// CHECK: Instructions sysvar, verified by address
@@ -36,7 +43,10 @@ pub struct ExecuteEk256<'info> {
     pub instructions: AccountInfo<'info>,
 }
 
-pub fn execute_ek256_impl(ctx: Context<ExecuteEk256>, account_id: AccountId) -> Result<()> {
+pub fn execute_ek256_impl<'info>(
+    ctx: Context<'_, '_, '_, 'info, ExecuteEk256<'info>>,
+    account_id: AccountId,
+) -> Result<()> {
     let (eth_address, signed_message) = get_ek256_data_impl(&ctx.accounts.instructions)?;
 
     let transaction = Transaction::try_from_slice(&signed_message)?;
@@ -55,6 +65,9 @@ pub fn execute_ek256_impl(ctx: Context<ExecuteEk256>, account_id: AccountId) -> 
             signer_info: ctx.accounts.signer.to_account_info(),
             system_program_info: ctx.accounts.system_program.to_account_info(),
         },
+        account_id,
+        ctx.accounts.account_manager.chain_signatures_program_id,
+        ctx.remaining_accounts,
         transaction.action,
     )
 }
@@ -73,6 +86,12 @@ pub struct ExecuteZkOidc<'info> {
     pub abstract_account: Account<'info, AbstractAccount>,
 
     #[account(
+        seeds = [ACCOUNT_MANAGER_SEED],
+        bump = account_manager.bump,
+    )]
+    pub account_manager: Account<'info, AccountManager>,
+
+    #[account(
         seeds = [OIDC_KEY_REGISTRY_SEED],
         bump = oidc_key_registry.bump,
     )]
@@ -81,8 +100,8 @@ pub struct ExecuteZkOidc<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn execute_zk_oidc_impl(
-    ctx: Context<ExecuteZkOidc>,
+pub fn execute_zk_oidc_impl<'info>(
+    ctx: Context<'_, '_, '_, 'info, ExecuteZkOidc<'info>>,
     account_id: AccountId,
     transaction: Transaction,
     groth16_proof: Sp1Groth16Proof,
@@ -122,14 +141,23 @@ pub fn execute_zk_oidc_impl(
             signer_info: ctx.accounts.signer.to_account_info(),
             system_program_info: ctx.accounts.system_program.to_account_info(),
         },
+        account_id,
+        ctx.accounts.account_manager.chain_signatures_program_id,
+        ctx.remaining_accounts,
         transaction.action,
     )
 }
 
-fn dispatch_action(
-    operation_accounts: AbstractAccountOperationAccounts,
+fn dispatch_action<'info>(
+    operation_accounts: AbstractAccountOperationAccounts<'_, 'info>,
+    account_id: AccountId,
+    chain_signatures_program_id: Pubkey,
+    remaining_accounts: &[AccountInfo<'info>],
     action: Action,
 ) -> Result<()> {
+    // account_id / chain_signatures_program_id / remaining_accounts are consumed
+    // by the Sign action wired in a later task.
+    let _ = (account_id, chain_signatures_program_id, remaining_accounts);
     match action {
         Action::RemoveAccount => AbstractAccount::close_account(operation_accounts),
         Action::AddIdentity(identity_with_permissions) => {

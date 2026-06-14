@@ -27,8 +27,11 @@ pub mod solana_aa {
 
     use super::*;
 
-    pub fn init_contract(ctx: Context<InitContract>) -> Result<()> {
-        init_contract_impl(ctx)
+    pub fn init_contract(
+        ctx: Context<InitContract>,
+        chain_signatures_program_id: Pubkey,
+    ) -> Result<()> {
+        init_contract_impl(ctx, chain_signatures_program_id)
     }
 
     pub fn close_contract(_ctx: Context<CloseContract>) -> Result<()> {
@@ -162,7 +165,10 @@ pub mod solana_aa {
         )
     }
 
-    pub fn execute_ek256(ctx: Context<ExecuteEk256>, account_id: AccountId) -> Result<()> {
+    pub fn execute_ek256<'info>(
+        ctx: Context<'_, '_, '_, 'info, ExecuteEk256<'info>>,
+        account_id: AccountId,
+    ) -> Result<()> {
         execute_ek256_impl(ctx, account_id)
     }
 
@@ -182,8 +188,8 @@ pub mod solana_aa {
         Ok(())
     }
 
-    pub fn execute_zk_oidc(
-        ctx: Context<ExecuteZkOidc>,
+    pub fn execute_zk_oidc<'info>(
+        ctx: Context<'_, '_, '_, 'info, ExecuteZkOidc<'info>>,
         account_id: AccountId,
         transaction: Transaction,
         groth16_proof: Sp1Groth16Proof,

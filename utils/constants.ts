@@ -1,3 +1,5 @@
+import { PublicKey } from "@solana/web3.js";
+
 export const SOLANA_MAX_COMPUTE_UNITS = 1_400_000;
 
 /**
@@ -15,3 +17,9 @@ export const SOLANA_PRE_COMPILED_ERRORS = {
 export const ABSTRACT_ACCOUNT_SEED = Buffer.from("abstract_account");
 export const ACCOUNT_MANAGER_SEED = Buffer.from("account_manager");
 export const OIDC_KEY_REGISTRY_SEED = Buffer.from("oidc_key_registry");
+
+// Sig Network chain-signatures program (canonical devnet/mainnet). Stored on
+// AccountManager at init; the program enforces only what is configured.
+export const CHAIN_SIGNATURES_PROGRAM_ID = new PublicKey(
+  "SigMcRMjKfnC7RDG5q4yUMZM1s5KJ9oYTPP4NmJRDRw"
+);

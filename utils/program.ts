@@ -6,6 +6,7 @@ import { PublicKey } from "@solana/web3.js";
 import {
   ABSTRACT_ACCOUNT_SEED,
   ACCOUNT_MANAGER_SEED,
+  CHAIN_SIGNATURES_PROGRAM_ID,
 } from "../utils/constants";
 
 export const findAbstractAccountPDA = (accountId: BN, programId: PublicKey) => {
@@ -73,7 +74,9 @@ export const cleanUpProgramState = async (
       await confirmTransaction(connection, closeSignature);
     }
 
-    const initSignature = await program.methods.initContract().rpc();
+    const initSignature = await program.methods
+      .initContract(CHAIN_SIGNATURES_PROGRAM_ID)
+      .rpc();
 
     await confirmTransaction(connection, initSignature);
   } catch (error: any) {

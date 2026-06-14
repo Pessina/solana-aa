@@ -13,6 +13,10 @@ pub struct AccountManager {
     */
     pub next_account_id: AccountId,
 
+    /// Sig Network chain-signatures program the `Sign` action may CPI into.
+    /// Deployment config so devnet/mainnet/forks differ without a code change.
+    pub chain_signatures_program_id: Pubkey,
+
     // PDA discriminator to optimize Anchor account validation
     pub bump: u8,
 }
@@ -20,10 +24,13 @@ pub struct AccountManager {
 impl AccountManager {
     const PDA_DISCRIMINATOR_SIZE: usize = 8;
     const ACCOUNT_ID_SIZE: usize = 8;
+    const PUBKEY_SIZE: usize = 32;
     const BUMP_SIZE: usize = 1;
 
-    pub const INIT_SIZE: usize =
-        Self::PDA_DISCRIMINATOR_SIZE + Self::ACCOUNT_ID_SIZE + Self::BUMP_SIZE;
+    pub const INIT_SIZE: usize = Self::PDA_DISCRIMINATOR_SIZE
+        + Self::ACCOUNT_ID_SIZE
+        + Self::PUBKEY_SIZE
+        + Self::BUMP_SIZE;
 
     pub fn increment_next_account_id(&mut self) -> AccountId {
         let old_next_account_id = self.next_account_id;
