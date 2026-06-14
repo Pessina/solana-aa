@@ -23,7 +23,8 @@ export const findAccountManagerPDA = (programId: PublicKey) => {
 export const cleanUpProgramState = async (
   program: anchor.Program<SolanaAa>,
   connection: anchor.web3.Connection,
-  provider: anchor.AnchorProvider
+  provider: anchor.AnchorProvider,
+  chainSignaturesProgramId: PublicKey = CHAIN_SIGNATURES_PROGRAM_ID
 ) => {
   try {
     const [accountManagerPDA] = findAccountManagerPDA(program.programId);
@@ -75,7 +76,7 @@ export const cleanUpProgramState = async (
     }
 
     const initSignature = await program.methods
-      .initContract(CHAIN_SIGNATURES_PROGRAM_ID)
+      .initContract(chainSignaturesProgramId)
       .rpc();
 
     await confirmTransaction(connection, initSignature);

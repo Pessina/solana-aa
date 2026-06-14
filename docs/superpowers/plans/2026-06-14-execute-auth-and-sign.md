@@ -389,11 +389,13 @@ fn build_sign_data(req: &SignRequest) -> Result<Vec<u8>> {
 }
 
 /// Build the chain-signatures `sign` Instruction. `program_id` comes from
-/// AccountManager config; account order matches chain-signatures' `Sign` struct:
+/// AccountManager config; account order matches chain-signatures' `Sign` struct
+/// (with #[event_cpi] appending event_authority + program):
 /// program_state, requester, fee_payer, system_program, event_authority, program.
 ///
-/// NOTE: confirm the per-account mut/signer flags against the chain-signatures
-/// IDL before mainnet (spec §3). Inferred flags applied below.
+/// Flags CONFIRMED against chain-signatures source (docs.rs):
+///   #[event_cpi] pub struct Sign { program_state: mut+seeds[b"program-state"];
+///   requester: mut+Signer; fee_payer: mut+Option<Signer>; system_program }.
 #[allow(clippy::too_many_arguments)]
 pub fn build_sign_instruction(
     program_id: Pubkey,
@@ -409,7 +411,7 @@ pub fn build_sign_instruction(
         program_id,
         accounts: vec![
             AccountMeta::new(program_state, false),
-            AccountMeta::new_readonly(requester, true),
+            AccountMeta::new(requester, true),
             AccountMeta::new(fee_payer, true),
             AccountMeta::new_readonly(system_program, false),
             AccountMeta::new_readonly(event_authority, false),
