@@ -15,7 +15,7 @@ Signature verification is delegated to Solana's native precompiles rather than d
 | Identity | Scheme | Verified by | Status |
 |---|---|---|---|
 | Ethereum wallet | secp256k1 + keccak256 ("ek256") | [secp256k1 precompile](https://docs.anza.xyz/runtime/programs#secp256k1-program) | Verification + execution |
-| WebAuthn passkey | secp256r1 (P-256) + SHA-256 | [secp256r1 precompile](https://docs.anza.xyz/runtime/programs#secp256r1-program) | Verification only |
+| WebAuthn passkey | secp256r1 (P-256) + SHA-256 | [secp256r1 precompile](https://docs.anza.xyz/runtime/programs#secp256r1-program) | Verification + execution |
 | OIDC | RS256 JWT inside an SP1 zkVM proof | Groth16 over [alt_bn128 syscalls](https://docs.anza.xyz/proposals/precompiles) (`sp1-solana`) | Verification + execution |
 
 The pattern is the standard precompile + instruction introspection flow: the client places the precompile verification instruction immediately before the program instruction in the same transaction. If the signature is invalid the runtime aborts the whole transaction, so by the time the program runs, the signature is known-good. The program then reads the precompile instruction back through the instructions sysvar to learn *what* was verified (signer + message) and uses that as the authenticated caller identity.
@@ -24,7 +24,7 @@ The pattern is the standard precompile + instruction introspection flow: the cli
 
 Two account types, defined in [`programs/solana-aa/src/types`](programs/solana-aa/src/types):
 
-- **`AccountManager`** — singleton PDA, seed `["account_manager"]`. Holds `next_account_id`, a monotonically increasing `u64`. Accounts get sequential IDs; IDs of deleted accounts are never reused. This enables cheap account discovery and prevents recreate-at-same-address attacks.
+- **`AccountManager`** — singleton PDA, seed `["account_manager"]`. Holds `next_account_id` (a monotonically increasing `u64`; accounts get sequential IDs, never reused, enabling cheap discovery and preventing recreate-at-same-address attacks), the `chain_signatures_program_id` the `Sign` action may CPI into (deployment config, set at `init_contract`), and the `admin` allowed to call the privileged account close.
 - **`AbstractAccount`** — one PDA per account, seeds `["abstract_account", account_id_le_bytes]`. Holds:
   - `nonce: u128` — incremented on every executed transaction, for replay protection
   - `identities: Vec<IdentityWithPermissions>` — the authentication methods that control the account
@@ -32,9 +32,9 @@ Two account types, defined in [`programs/solana-aa/src/types`](programs/solana-a
 
 The account is reallocated as identities are added and removed; rent for freed space is refunded to the signer ([`utils/pda.rs`](programs/solana-aa/src/utils/pda.rs)).
 
-### Transaction execution (`execute_ek256`)
+### Transaction execution
 
-The only fully wired execution path today is Ethereum-signed transactions ([`contract/transaction/execute.rs`](programs/solana-aa/src/contract/transaction/execute.rs)):
+All three credential types share one execution flow — `auth → (Identity, Transaction) → validate → dispatch` ([`contract/transaction/execute.rs`](programs/solana-aa/src/contract/transaction/execute.rs)). Ethereum-signed execution (`execute_ek256`) is the simplest to follow:
 
 1. The client Borsh-serializes `Transaction { account_id, nonce, action }` and signs `keccak256(bytes)` with an Ethereum key.
 2. The client submits one Solana transaction containing two instructions:
@@ -50,10 +50,17 @@ The only fully wired execution path today is Ethereum-signed transactions ([`con
    - `RemoveAccount` — close the PDA and refund rent
    - `AddIdentity(IdentityWithPermissions)` — register a new authentication method
    - `RemoveIdentity(Identity)` — remove one
+   - `Sign(SignRequest)` — CPI into the configured chain-signatures program (see [The `Sign` action](#the-sign-action))
 
 Because the signed message embeds the account ID, the nonce, and the action, a signature cannot be replayed against another account, replayed twice, or repurposed for a different operation.
 
-WebAuthn has the verification half implemented ([`contract/auth/secp256r1_sha256.rs`](programs/solana-aa/src/contract/auth/secp256r1_sha256.rs)) — same introspection pattern against the secp256r1 precompile, where the signed payload is `authenticator_data || sha256(client_data_json)` and the transaction hash travels in the client data challenge — but there is no `execute_*` path for it yet.
+WebAuthn execution (`execute_webauthn`) follows the same flow against the secp256r1 precompile ([`contract/auth/secp256r1_sha256.rs`](programs/solana-aa/src/contract/auth/secp256r1_sha256.rs)). The precompile verifies a signature over `authenticator_data || sha256(clientDataJSON)`; the program then re-binds that exact message, parses `clientDataJSON` (requiring `type == "webauthn.get"`), requires the user-present flag, and binds `clientData.challenge` to `base64url(sha256(borsh(Transaction)))`. The caller identity is reconstructed as `WebAuthn { compressed_public_key, rp_id_hash (from authenticatorData), origin (from clientData) }`, so a passkey only authorizes on the relying party and origin it was registered with.
+
+### The `Sign` action
+
+`Sign(SignRequest)` lets an abstract account request a signature from the [Sig Network chain-signatures program](https://github.com/sig-net/solana-signet-program) — the one cross-program call the account can make today. Any registered identity can authorize it through any of the execution paths above; dispatch then CPIs into the chain-signatures `sign` instruction via `invoke_signed`, with the abstract-account PDA as the `requester` (it signs via its own seeds) and the outer Solana signer as the fee-paying `fee_payer`.
+
+The target program is **deployment config**: `init_contract` records a `chain_signatures_program_id` on the `AccountManager`, and dispatch rejects any program account that does not match it ([`contract/transaction/sign.rs`](programs/solana-aa/src/contract/transaction/sign.rs)). The `sign` instruction data is built by hand (Anchor discriminator + Borsh args, covered by a golden test) so the program carries no IDL dependency on the callee. The `Sign` request rides inside the signed `Transaction`, so the per-method binding + account nonce already authorize exactly this payload and path.
 
 ### Instructions
 
@@ -63,8 +70,9 @@ WebAuthn has the verification half implemented ([`contract/auth/secp256r1_sha256
 | `create_account` | Create an `AbstractAccount` with its first identity. Deliberately unauthenticated: anyone can create an account, but only its registered identities can control it |
 | `execute_ek256` | Execution entrypoint — verify an Ethereum-signed `Transaction` and dispatch its action |
 | `execute_zk_oidc` | Execution entrypoint — verify an SP1 Groth16 proof of an OIDC JWT, check transaction binding and key registry, dispatch the action |
+| `execute_webauthn` | Execution entrypoint — verify a WebAuthn (P-256) passkey assertion, bind it to the transaction + relying party, dispatch the action |
 | `init_oidc_registry` / `add_oidc_key` / `remove_oidc_key` / `close_oidc_registry` | Authority-managed registry pinning the OIDC provider signing keys (JWKS) accepted by `execute_zk_oidc` |
-| `delete_account` / `add_identity` / `remove_identity` | Direct account mutations that **bypass signature auth** — development helpers only, must be removed or secured before any real deployment |
+| `delete_account` | Admin-gated account close, restricted to the `AccountManager.admin` set at `init_contract` — an administration/teardown helper, not an owner-authorized close |
 | `verify_eth` / `get_eth_data` | Debug helpers for secp256k1 precompile introspection |
 | `verify_webauthn` / `get_webauthn_data` | Same for the secp256r1 precompile |
 | `init_storage` / `store_chunk` / `retrieve_chunk` / `get_data_metadata` / `close_storage` | Transaction buffer (below) |
@@ -99,10 +107,8 @@ Removal wasn't just cleanup: a program whose binary references an inactive sysca
 
 What the validation layer enforces today: identity membership, nonce equality (then increment), and account-ID binding. What it does not:
 
-- **Permissions are stored but never enforced.** `IdentityPermissions { enable_act_as }` is persisted, and `UserOp.act_as` exists in the types, but `is_transaction_authorized` checks neither.
-- **Unauthenticated mutation instructions.** `delete_account`, `add_identity`, `remove_identity` operate without any signature verification.
-- **No WebAuthn execution path**, and the `WebAuthnAuthenticator` identity does not yet bind `client_data.origin` / `rpIdHash` — a passkey reused across sites could be replayed cross-origin.
-- **No bounds on account growth.** The identity list can grow toward the heap limit without a guard.
+- **Permissions are stored but never enforced.** `IdentityPermissions { enable_act_as }` is persisted, and `UserOp.act_as` exists in the types, but `is_transaction_authorized` checks neither — so every registered identity has full authority over the account, including the `Sign` action.
+- **Account close is admin-gated, not owner-gated.** `delete_account` is restricted to the deployment `admin` (an administration/teardown helper). A production design would instead let an account's own identities authorize closing it via the `RemoveAccount` action.
 - **Single-signature only.** The precompile introspection rejects multi-signature instructions; there is no multisig or threshold support.
 
 ## Repository layout
@@ -121,7 +127,8 @@ programs/solana-aa/src/
 │   │   ├── secp256r1_sha256.rs  # secp256r1 (WebAuthn) precompile introspection
 │   │   └── zk_oidc.rs           # SP1 Groth16 verification of the JWT guest program
 │   └── transaction/
-│       ├── execute.rs           # execute_ek256 / execute_zk_oidc → validate → dispatch
+│       ├── execute.rs           # execute_{ek256,zk_oidc,webauthn} → validate → dispatch
+│       ├── sign.rs              # chain-signatures `sign` CPI instruction builder
 │       └── validation.rs        # Identity membership + nonce + account binding
 ├── types/
 │   ├── account.rs               # AbstractAccount (nonce, identities, realloc)
@@ -162,8 +169,10 @@ cargo run --release -- fixture --out ../../tests/fixtures/zk-oidc-add-identity.j
 
 | Spec | Covers |
 |---|---|
-| [`tests/accounts.spec.ts`](tests/accounts.spec.ts) | Account creation, sequential IDs, identity add/remove, closing |
+| [`tests/accounts.spec.ts`](tests/accounts.spec.ts) | Account creation, sequential IDs, authenticated identity add/remove, admin close, identity-count bound |
 | [`tests/execute_ek256.spec.ts`](tests/execute_ek256.spec.ts) | End-to-end signed-transaction execution with Ethereum keys |
+| [`tests/execute_webauthn.spec.ts`](tests/execute_webauthn.spec.ts) | End-to-end WebAuthn-signed execution: transaction + origin binding, user-present and replay rejections |
+| [`tests/sign.spec.ts`](tests/sign.spec.ts) | `Sign` action CPI into a mock chain-signatures program, with program-mismatch and account-shape rejections |
 | [`tests/borsh-ek256-auth.spec.ts`](tests/borsh-ek256-auth.spec.ts) | secp256k1 precompile verification and introspection |
 | [`tests/secp256r1-sha256-auth.spec.ts`](tests/secp256r1-sha256-auth.spec.ts) | WebAuthn (P-256) verification, precompile and program error cases |
 | [`tests/zk-oidc.spec.ts`](tests/zk-oidc.spec.ts) | ZK OIDC execution against the golden Groth16 fixture: happy path, replay, transaction-binding, registry and identity-membership rejections |
