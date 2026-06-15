@@ -225,7 +225,7 @@ pub fn execute_webauthn_impl<'info>(
     //    without an actual authenticator gesture.
     require!(
         auth.authenticator_data.len() >= 37,
-        ErrorCode::InvalidClientData
+        ErrorCode::InvalidAuthenticatorData
     );
     require!(
         auth.authenticator_data[32] & 0x01 == 0x01,
@@ -367,6 +367,8 @@ pub enum ErrorCode {
     WebAuthnChallengeMismatch,
     #[msg("WebAuthn user-present flag not set")]
     WebAuthnUserNotPresent,
+    #[msg("Malformed authenticatorData")]
+    InvalidAuthenticatorData,
     #[msg("Malformed clientDataJSON")]
     InvalidClientData,
 }
