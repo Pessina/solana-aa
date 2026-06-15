@@ -54,7 +54,7 @@ All three credential types share one execution flow — `auth → (Identity, Tra
 
 Because the signed message embeds the account ID, the nonce, and the action, a signature cannot be replayed against another account, replayed twice, or repurposed for a different operation.
 
-WebAuthn execution (`execute_webauthn`) follows the same flow against the secp256r1 precompile ([`contract/auth/secp256r1_sha256.rs`](programs/solana-aa/src/contract/auth/secp256r1_sha256.rs)). The precompile verifies a signature over `authenticator_data || sha256(clientDataJSON)`; the program then re-binds that exact message, parses `clientDataJSON` (requiring `type == "webauthn.get"`), requires the user-present flag, and binds `clientData.challenge` to `base64url(sha256(borsh(Transaction)))`. The caller identity is reconstructed as `WebAuthn { compressed_public_key, rp_id_hash (from authenticatorData), origin (from clientData) }`, so a passkey only authorizes on the relying party and origin it was registered with.
+WebAuthn execution (`execute_webauthn`) follows the same flow against the secp256r1 precompile ([`contract/auth/secp256r1_sha256.rs`](programs/solana-aa/src/contract/auth/secp256r1_sha256.rs)). The precompile verifies a signature over `authenticator_data || sha256(clientDataJSON)`; the program then re-binds that exact message, parses `clientDataJSON` (requiring `type == "webauthn.get"`), requires the user-present and user-verified flags, and binds `clientData.challenge` to `base64url(sha256(borsh(Transaction)))`. The caller identity is reconstructed as `WebAuthn { compressed_public_key, rp_id_hash (from authenticatorData), origin (from clientData) }`, so a passkey only authorizes on the relying party and origin it was registered with.
 
 ### The `Sign` action
 
@@ -171,7 +171,7 @@ cargo run --release -- fixture --out ../../tests/fixtures/zk-oidc-add-identity.j
 |---|---|
 | [`tests/accounts.spec.ts`](tests/accounts.spec.ts) | Account creation, sequential IDs, authenticated identity add/remove, admin close, identity-count bound |
 | [`tests/execute_ek256.spec.ts`](tests/execute_ek256.spec.ts) | End-to-end signed-transaction execution with Ethereum keys |
-| [`tests/execute_webauthn.spec.ts`](tests/execute_webauthn.spec.ts) | End-to-end WebAuthn-signed execution: transaction + origin binding, user-present and replay rejections |
+| [`tests/execute_webauthn.spec.ts`](tests/execute_webauthn.spec.ts) | End-to-end WebAuthn-signed execution: transaction + origin binding, user-present, user-verified, and replay rejections |
 | [`tests/sign.spec.ts`](tests/sign.spec.ts) | `Sign` action CPI into a mock chain-signatures program, with program-mismatch and account-shape rejections |
 | [`tests/borsh-ek256-auth.spec.ts`](tests/borsh-ek256-auth.spec.ts) | secp256k1 precompile verification and introspection |
 | [`tests/secp256r1-sha256-auth.spec.ts`](tests/secp256r1-sha256-auth.spec.ts) | WebAuthn (P-256) verification, precompile and program error cases |
