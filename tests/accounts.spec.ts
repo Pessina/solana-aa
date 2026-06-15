@@ -388,4 +388,31 @@ describe("Accounts", () => {
       assert.include(error.toString(), "TooManyIdentities");
     }
   });
+
+  it("rejects closing an account from a non-admin signer", async () => {
+    await program.methods
+      .createAccount(
+        buildEthereumIdentity(privateKeyToAccount(HARDHAT_KEY).address, null)
+      )
+      .rpc();
+
+    // A funded keypair that is not the deployment admin (provider.wallet).
+    const intruder = anchor.web3.Keypair.generate();
+    const airdrop = await connection.requestAirdrop(
+      intruder.publicKey,
+      anchor.web3.LAMPORTS_PER_SOL
+    );
+    await confirmTransaction(connection, airdrop);
+
+    try {
+      await program.methods
+        .deleteAccount(new BN(0))
+        .accounts({ signer: intruder.publicKey })
+        .signers([intruder])
+        .rpc();
+      assert.fail("Expected a non-admin close to be rejected");
+    } catch (error: any) {
+      assert.include(error.toString(), "Unauthorized");
+    }
+  });
 });
