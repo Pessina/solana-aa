@@ -230,4 +230,64 @@ describe("Execute ZK OIDC", () => {
       assert.include(error.toString(), "IdentityNotFound");
     }
   });
+
+  it("rejects a Groth16 proof whose bytes have been tampered with", async () => {
+    await createOidcAccount();
+
+    const tampered = {
+      proof: Buffer.from(groth16Proof.proof),
+      publicValues: Buffer.from(groth16Proof.publicValues),
+    };
+    // Flip a byte in the proof body; it stays well-formed but no longer
+    // satisfies the pairing check, so on-chain verification must reject it.
+    tampered.proof[tampered.proof.length - 1] ^= 0xff;
+
+    try {
+      await program.methods
+        .executeZkOidc(
+          fixtureTransactionArg.accountId,
+          fixtureTransactionArg,
+          tampered
+        )
+        .preInstructions([
+          ComputeBudgetProgram.setComputeUnitLimit({
+            units: ZK_VERIFY_COMPUTE_UNITS,
+          }),
+        ])
+        .rpc();
+      assert.fail("executeZkOidc resolved but a rejection was expected");
+    } catch (error: any) {
+      assert.include(error.toString(), "ProofVerificationFailed");
+    }
+  });
+
+  it("rejects a proof whose committed public values were altered", async () => {
+    await createOidcAccount();
+
+    const tampered = {
+      proof: Buffer.from(groth16Proof.proof),
+      publicValues: Buffer.from(groth16Proof.publicValues),
+    };
+    // The proof commits to sha256(publicValues); changing any byte breaks that
+    // binding and the Groth16 verification fails.
+    tampered.publicValues[0] ^= 0xff;
+
+    try {
+      await program.methods
+        .executeZkOidc(
+          fixtureTransactionArg.accountId,
+          fixtureTransactionArg,
+          tampered
+        )
+        .preInstructions([
+          ComputeBudgetProgram.setComputeUnitLimit({
+            units: ZK_VERIFY_COMPUTE_UNITS,
+          }),
+        ])
+        .rpc();
+      assert.fail("executeZkOidc resolved but a rejection was expected");
+    } catch (error: any) {
+      assert.include(error.toString(), "ProofVerificationFailed");
+    }
+  });
 });
