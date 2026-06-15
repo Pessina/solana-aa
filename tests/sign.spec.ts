@@ -1,16 +1,11 @@
 import * as anchor from "@coral-xyz/anchor";
-import { signWithEthereum } from "../utils/secp256k1-signer";
-import { borshUtils, Transaction } from "../borsh";
+import { Transaction } from "../borsh";
 import { confirmTransaction } from "../utils/solana";
-import {
-  parseEthereumSignature,
-  ethereumAddressToBytes,
-  createSecp256k1VerificationInstruction,
-} from "../utils/ethereum";
-import { Hex, keccak256 } from "viem";
+import { Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { cleanUpProgramState, findAbstractAccountPDA } from "../utils/program";
 import { buildEthereumIdentity } from "../utils/identity";
+import { executeEk256Action } from "../utils/test-helpers";
 import { BN } from "bn.js";
 import { PublicKey, Keypair } from "@solana/web3.js";
 import { SolanaAa } from "../target/types/solana_aa";
@@ -66,35 +61,13 @@ describe("Execute Sign (chain-signatures CPI)", () => {
     accountId: bigint;
     remainingAccounts: anchor.web3.AccountMeta[];
   }) {
-    const serializedMessage = Buffer.from(
-      borshUtils.serialize.transaction(transaction)
-    );
-
-    const ethSignature = await signWithEthereum({
-      hash: keccak256(serializedMessage),
-      privateKey,
+    return executeEk256Action(program, {
+      accountId,
+      ethPrivateKey: privateKey,
+      action: transaction.action,
+      nonce: transaction.nonce,
+      remainingAccounts,
     });
-
-    const { signature, recoveryId } = parseEthereumSignature(
-      ethSignature.signature
-    );
-    const addressBytes = ethereumAddressToBytes(ethSignature.address);
-
-    const verificationInstruction = createSecp256k1VerificationInstruction(
-      signature,
-      recoveryId,
-      addressBytes,
-      serializedMessage
-    );
-
-    const txSignature = await program.methods
-      .executeEk256(new BN(accountId.toString()))
-      .preInstructions([verificationInstruction])
-      .remainingAccounts(remainingAccounts)
-      .rpc();
-
-    await confirmTransaction(provider.connection, txSignature);
-    return txSignature;
   }
 
   async function createAccount(accountId: bigint, privateKey: Hex) {
@@ -162,10 +135,7 @@ describe("Execute Sign (chain-signatures CPI)", () => {
       });
       assert.fail("Should have rejected a mismatched chain-signatures program");
     } catch (error: any) {
-      assert.equal(
-        error.error.errorMessage,
-        "Provided chain-signatures program does not match the configured deployment id"
-      );
+      assert.include(error.toString(), "ChainSignaturesProgramMismatch");
     }
   });
 
@@ -182,10 +152,7 @@ describe("Execute Sign (chain-signatures CPI)", () => {
       });
       assert.fail("Should have rejected the wrong remaining-account count");
     } catch (error: any) {
-      assert.equal(
-        error.error.errorMessage,
-        "Sign action requires [program_state, event_authority, chain_signatures_program] as remaining accounts"
-      );
+      assert.include(error.toString(), "InvalidChainSignaturesAccounts");
     }
   });
 });
