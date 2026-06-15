@@ -29,7 +29,7 @@ ZK OIDC fixtures are committed under `tests/fixtures/`, so `anchor test` needs *
 
 ## Layout
 
-`programs/solana-aa/src/` — on-chain program: `lib.rs` entrypoints → `contract/` handlers (`auth/`, `transaction/`) → `types/`. `zk/` — SP1 OIDC guest + host tooling. `borsh/` + `utils/` — TS client helpers mirroring the on-chain types. `tests/` — ts-mocha suite. Full tree in the README.
+`programs/solana-aa/src/` — the on-chain program: `lib.rs` entrypoints → `contract/` handlers (`auth/`, `transaction/`) → `types/`. `programs/mock-chain-signatures/` — a minimal stand-in for the Sig Network chain-signatures program, used only by `tests/sign.spec.ts` to exercise the `Sign` action's CPI without deploying the real program. `zk/` — SP1 OIDC guest + host tooling. `borsh/` + `utils/` — TS client helpers mirroring the on-chain types. `tests/` — ts-mocha suite. Full tree in the README.
 
 ## Conventions
 
