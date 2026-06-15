@@ -389,6 +389,63 @@ describe("Accounts", () => {
     }
   });
 
+  it("treats a duplicate add as a no-op without growing the account", async () => {
+    await program.methods
+      .createAccount(
+        buildEthereumIdentity(privateKeyToAccount(HARDHAT_KEY).address, null)
+      )
+      .rpc();
+
+    const [accountPDA] = findAbstractAccountPDA(new BN(0), program.programId);
+
+    const addEthAddress2 = () =>
+      executeEk256Action(program, {
+        accountId: 0n,
+        ethPrivateKey: HARDHAT_KEY,
+        action: {
+          AddIdentity: {
+            identity: { Wallet: { Ethereum: toBytes(ETH_ADDRESS_2) } },
+            permissions: { enable_act_as: false },
+          },
+        },
+      });
+
+    const accountSize = async (): Promise<number> => {
+      const info = await connection.getAccountInfo(accountPDA);
+      if (!info) throw new Error("abstract account not found");
+      return info.data.length;
+    };
+
+    await addEthAddress2();
+    const sizeAfterFirstAdd = await accountSize();
+    const identitiesAfterFirstAdd = (
+      await program.account.abstractAccount.fetch(accountPDA)
+    ).identities.length;
+
+    // Re-adding the same identity must not reallocate or duplicate state.
+    await addEthAddress2();
+    const sizeAfterDuplicateAdd = await accountSize();
+    const identitiesAfterDuplicateAdd = (
+      await program.account.abstractAccount.fetch(accountPDA)
+    ).identities.length;
+
+    assert.strictEqual(
+      sizeAfterDuplicateAdd,
+      sizeAfterFirstAdd,
+      "A duplicate add must not grow the account"
+    );
+    assert.strictEqual(
+      identitiesAfterDuplicateAdd,
+      identitiesAfterFirstAdd,
+      "A duplicate add must not change the identity count"
+    );
+    assert.strictEqual(
+      identitiesAfterDuplicateAdd,
+      2,
+      "Account should hold exactly the creator + ETH_ADDRESS_2"
+    );
+  });
+
   it("rejects closing an account from a non-admin signer", async () => {
     await program.methods
       .createAccount(
