@@ -15,7 +15,10 @@ import {
   SOLANA_PRE_COMPILED_ERRORS,
 } from "../utils/constants";
 import { toHex } from "viem";
-import { createSecp256r1VerificationInstruction } from "../utils/webauthn";
+import {
+  createSecp256r1VerificationInstruction,
+  SECP256R1_PROGRAM_ID,
+} from "../utils/webauthn";
 
 /**
  * Prepares WebAuthn data for verification
@@ -503,6 +506,124 @@ describe("WebAuthn Authentication", () => {
         result.error.error.errorMessage || "",
         "Invalid verification instruction program ID",
         "Should fail with invalid verification instruction error when using wrong program ID"
+      );
+    });
+  });
+
+  describe("Introspection shape rejections", () => {
+    const program = anchor.workspace.solanaAa as Program<SolanaAa>;
+
+    const PRIV_R1 = new Uint8Array(32).fill(7);
+    const PUB_R1 = p256.getPublicKey(PRIV_R1, true);
+    const r1Message = Buffer.from(
+      "solana-aa secp256r1 introspection negative vector"
+    );
+    const signR1 = (): Uint8Array =>
+      p256
+        .sign(createHash("sha256").update(r1Message).digest(), PRIV_R1, {
+          lowS: true,
+        })
+        .toCompactRawBytes();
+
+    // A single-signature secp256r1 instruction with a configurable
+    // instruction_index (0xffff means "this instruction"). A real index lets
+    // the precompile still verify (it reads that instruction) while the program
+    // rejects the cross-instruction reference.
+    const buildSecp256r1Ix = (
+      signature: Uint8Array,
+      publicKey: Uint8Array,
+      message: Buffer,
+      instructionIndex: number
+    ): TransactionInstruction => {
+      const headerSize = 2 + 14;
+      const sigOffset = headerSize;
+      const pubkeyOffset = sigOffset + signature.length;
+      const messageOffset = pubkeyOffset + publicKey.length;
+      const data = Buffer.alloc(messageOffset + message.length);
+      data.writeUInt8(1, 0);
+      data.writeUInt8(0, 1);
+      data.writeUInt16LE(sigOffset, 2);
+      data.writeUInt16LE(instructionIndex, 4);
+      data.writeUInt16LE(pubkeyOffset, 6);
+      data.writeUInt16LE(instructionIndex, 8);
+      data.writeUInt16LE(messageOffset, 10);
+      data.writeUInt16LE(message.length, 12);
+      data.writeUInt16LE(instructionIndex, 14);
+      Buffer.from(signature).copy(data, sigOffset);
+      Buffer.from(publicKey).copy(data, pubkeyOffset);
+      message.copy(data, messageOffset);
+      return new TransactionInstruction({
+        keys: [],
+        programId: SECP256R1_PROGRAM_ID,
+        data,
+      });
+    };
+
+    // A structurally valid secp256r1 instruction carrying TWO signatures (the
+    // same one twice). The precompile verifies both; the program must reject
+    // anything other than exactly one signature.
+    const buildTwoSignatureSecp256r1Ix = (
+      signature: Uint8Array,
+      publicKey: Uint8Array,
+      message: Buffer
+    ): TransactionInstruction => {
+      const NUM_SIGS = 2;
+      const OFFSETS_SIZE = 14;
+      const headerSize = 2 + NUM_SIGS * OFFSETS_SIZE;
+      const sigOffset = headerSize;
+      const pubkeyOffset = sigOffset + signature.length;
+      const messageOffset = pubkeyOffset + publicKey.length;
+      const data = Buffer.alloc(messageOffset + message.length);
+      data.writeUInt8(NUM_SIGS, 0);
+      data.writeUInt8(0, 1);
+      for (let i = 0; i < NUM_SIGS; i++) {
+        const at = 2 + i * OFFSETS_SIZE;
+        data.writeUInt16LE(sigOffset, at);
+        data.writeUInt16LE(0xffff, at + 2);
+        data.writeUInt16LE(pubkeyOffset, at + 4);
+        data.writeUInt16LE(0xffff, at + 6);
+        data.writeUInt16LE(messageOffset, at + 8);
+        data.writeUInt16LE(message.length, at + 10);
+        data.writeUInt16LE(0xffff, at + 12);
+      }
+      Buffer.from(signature).copy(data, sigOffset);
+      Buffer.from(publicKey).copy(data, pubkeyOffset);
+      message.copy(data, messageOffset);
+      return new TransactionInstruction({
+        keys: [],
+        programId: SECP256R1_PROGRAM_ID,
+        data,
+      });
+    };
+
+    const expectGetWebauthnDataError = async (
+      ix: TransactionInstruction,
+      expectedError: string
+    ) => {
+      try {
+        await program.methods
+          .getWebauthnData()
+          .accounts({
+            instructions_sysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+          })
+          .preInstructions([ix])
+          .rpc();
+        assert.fail("getWebauthnData resolved but a rejection was expected");
+      } catch (error: any) {
+        assert.include(error.toString(), expectedError);
+      }
+    };
+
+    it("rejects an instruction carrying more than one signature", async () => {
+      const ix = buildTwoSignatureSecp256r1Ix(signR1(), PUB_R1, r1Message);
+      await expectGetWebauthnDataError(ix, "MultipleSignaturesNotSupported");
+    });
+
+    it("rejects offsets that reference a different instruction", async () => {
+      const ix = buildSecp256r1Ix(signR1(), PUB_R1, r1Message, 0);
+      await expectGetWebauthnDataError(
+        ix,
+        "DataInOtherInstructionsNotSupported"
       );
     });
   });

@@ -80,7 +80,13 @@ describe("Execute WebAuthn", () => {
   // instruction that signs `authenticator_data || sha256(clientDataJSON)`.
   const signWebauthn = (
     borshTx: Transaction,
-    opts: { origin?: string; flags?: number; challengeBytes?: Uint8Array } = {}
+    opts: {
+      origin?: string;
+      flags?: number;
+      challengeBytes?: Uint8Array;
+      type?: string;
+      authDataOverride?: Buffer;
+    } = {}
   ) => {
     const origin = opts.origin ?? ORIGIN;
     const txHash = sha256(borshUtils.serialize.transaction(borshTx));
@@ -88,12 +94,12 @@ describe("Execute WebAuthn", () => {
       "base64url"
     );
     const clientData = JSON.stringify({
-      type: "webauthn.get",
+      type: opts.type ?? "webauthn.get",
       challenge,
       origin,
       crossOrigin: false,
     });
-    const authData = authenticatorData(opts.flags);
+    const authData = opts.authDataOverride ?? authenticatorData(opts.flags);
     const message = Buffer.concat([
       authData,
       sha256(Buffer.from(clientData, "utf-8")),
@@ -170,7 +176,7 @@ describe("Execute WebAuthn", () => {
 
     try {
       await executeWebauthn(0n, tx.arg, signed);
-      assert.fail("Expected WebAuthnChallengeMismatch");
+      assert.fail("executeWebauthn resolved but a rejection was expected");
     } catch (error: any) {
       assert.include(error.toString(), "WebAuthnChallengeMismatch");
     }
@@ -183,7 +189,7 @@ describe("Execute WebAuthn", () => {
 
     try {
       await executeWebauthn(0n, tx.arg, signed);
-      assert.fail("Expected IdentityNotFound for wrong origin");
+      assert.fail("executeWebauthn resolved but a rejection was expected");
     } catch (error: any) {
       assert.include(error.toString(), "IdentityNotFound");
     }
@@ -196,7 +202,7 @@ describe("Execute WebAuthn", () => {
 
     try {
       await executeWebauthn(0n, tx.arg, signed);
-      assert.fail("Expected WebAuthnUserNotPresent");
+      assert.fail("executeWebauthn resolved but a rejection was expected");
     } catch (error: any) {
       assert.include(error.toString(), "WebAuthnUserNotPresent");
     }
@@ -210,7 +216,7 @@ describe("Execute WebAuthn", () => {
 
     try {
       await executeWebauthn(0n, tx.arg, signed);
-      assert.fail("Expected WebAuthnUserNotVerified");
+      assert.fail("executeWebauthn resolved but a rejection was expected");
     } catch (error: any) {
       assert.include(error.toString(), "WebAuthnUserNotVerified");
     }
@@ -227,9 +233,76 @@ describe("Execute WebAuthn", () => {
     const replaySigned = signWebauthn(replay.borsh);
     try {
       await executeWebauthn(0n, replay.arg, replaySigned);
-      assert.fail("Expected NonceMismatch on replay");
+      assert.fail("executeWebauthn resolved but a rejection was expected");
     } catch (error: any) {
       assert.include(error.toString(), "NonceMismatch");
+    }
+  });
+
+  it("rejects auth data that does not match the verified signature", async () => {
+    const { nonce } = await createWebauthnAccount();
+    const tx = addIdentityTx(0n, nonce);
+    const real = signWebauthn(tx.borsh);
+    // The precompile verifies `real`, but the instruction passes a clientData
+    // signed for a different origin, so the on-chain re-binding must fail.
+    const decoy = signWebauthn(tx.borsh, { origin: "https://decoy.example" });
+
+    try {
+      await executeWebauthn(0n, tx.arg, {
+        clientData: decoy.clientData,
+        authData: decoy.authData,
+        verificationIx: real.verificationIx,
+      });
+      assert.fail("executeWebauthn resolved but a rejection was expected");
+    } catch (error: any) {
+      assert.include(error.toString(), "WebAuthnMessageMismatch");
+    }
+  });
+
+  it("rejects a clientDataJSON whose type is not webauthn.get", async () => {
+    const { nonce } = await createWebauthnAccount();
+    const tx = addIdentityTx(0n, nonce);
+    const signed = signWebauthn(tx.borsh, { type: "webauthn.create" });
+
+    try {
+      await executeWebauthn(0n, tx.arg, signed);
+      assert.fail("executeWebauthn resolved but a rejection was expected");
+    } catch (error: any) {
+      assert.include(error.toString(), "InvalidClientData");
+    }
+  });
+
+  it("rejects authenticatorData shorter than 37 bytes", async () => {
+    const { nonce } = await createWebauthnAccount();
+    const tx = addIdentityTx(0n, nonce);
+    // 32-byte rpIdHash + flags + only 3 counter bytes = 36 bytes (< 37).
+    const shortAuthData = Buffer.concat([
+      createHash("sha256").update(RP_ID).digest(),
+      Buffer.from([0x05, 0, 0, 0]),
+    ]);
+    const signed = signWebauthn(tx.borsh, { authDataOverride: shortAuthData });
+
+    try {
+      await executeWebauthn(0n, tx.arg, signed);
+      assert.fail("executeWebauthn resolved but a rejection was expected");
+    } catch (error: any) {
+      assert.include(error.toString(), "InvalidAuthenticatorData");
+    }
+  });
+
+  it("rejects a transaction whose account_id does not match the execution target", async () => {
+    const { nonce } = await createWebauthnAccount();
+    // Signed for account_id 1 but submitted against account 0's PDA. The
+    // signature is valid and the identity/nonce line up, so only the account_id
+    // binding stands between this and a cross-account transaction replay.
+    const tx = addIdentityTx(1n, nonce);
+    const signed = signWebauthn(tx.borsh);
+
+    try {
+      await executeWebauthn(0n, tx.arg, signed);
+      assert.fail("executeWebauthn resolved but a rejection was expected");
+    } catch (error: any) {
+      assert.include(error.toString(), "AccountIdMismatch");
     }
   });
 });
