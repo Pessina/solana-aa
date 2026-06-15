@@ -37,7 +37,8 @@ describe("Execute WebAuthn", () => {
   });
 
   // authenticatorData = rpIdHash(32) || flags(1) || signCount(4).
-  const authenticatorData = (flags = 0x01): Buffer =>
+  // Default flags 0x05 = UP (0x01) + UV (0x04); the program requires both.
+  const authenticatorData = (flags = 0x05): Buffer =>
     Buffer.concat([
       createHash("sha256").update(RP_ID).digest(),
       Buffer.from([flags, 0, 0, 0, 0]),
@@ -198,6 +199,20 @@ describe("Execute WebAuthn", () => {
       assert.fail("Expected WebAuthnUserNotPresent");
     } catch (error: any) {
       assert.include(error.toString(), "WebAuthnUserNotPresent");
+    }
+  });
+
+  it("rejects an assertion without the user-verified flag", async () => {
+    const { nonce } = await createWebauthnAccount();
+    const tx = addIdentityTx(0n, nonce);
+    // UP set (0x01) but UV (0x04) absent — possession without verification.
+    const signed = signWebauthn(tx.borsh, { flags: 0x01 });
+
+    try {
+      await executeWebauthn(0n, tx.arg, signed);
+      assert.fail("Expected WebAuthnUserNotVerified");
+    } catch (error: any) {
+      assert.include(error.toString(), "WebAuthnUserNotVerified");
     }
   });
 

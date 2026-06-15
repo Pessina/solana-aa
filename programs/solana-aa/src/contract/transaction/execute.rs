@@ -221,8 +221,10 @@ pub fn execute_webauthn_impl<'info>(
     require!(challenge == tx_hash, ErrorCode::WebAuthnChallengeMismatch);
 
     // 4. authenticatorData layout: rpIdHash[0..32], flags[32], counter[33..37].
-    //    Require the user-present (UP) bit so a stored signature can't be replayed
-    //    without an actual authenticator gesture.
+    //    Require user-present (UP, 0x01) so a stored signature can't be replayed
+    //    without an authenticator gesture, and user-verified (UV, 0x04) so a
+    //    biometric/PIN — not mere possession of the authenticator — authorizes
+    //    these security-sensitive actions.
     require!(
         auth.authenticator_data.len() >= 37,
         ErrorCode::InvalidAuthenticatorData
@@ -230,6 +232,10 @@ pub fn execute_webauthn_impl<'info>(
     require!(
         auth.authenticator_data[32] & 0x01 == 0x01,
         ErrorCode::WebAuthnUserNotPresent
+    );
+    require!(
+        auth.authenticator_data[32] & 0x04 == 0x04,
+        ErrorCode::WebAuthnUserNotVerified
     );
     let mut rp_id_hash = [0u8; 32];
     rp_id_hash.copy_from_slice(&auth.authenticator_data[0..32]);
@@ -367,6 +373,8 @@ pub enum ErrorCode {
     WebAuthnChallengeMismatch,
     #[msg("WebAuthn user-present flag not set")]
     WebAuthnUserNotPresent,
+    #[msg("WebAuthn user-verified flag not set")]
+    WebAuthnUserNotVerified,
     #[msg("Malformed authenticatorData")]
     InvalidAuthenticatorData,
     #[msg("Malformed clientDataJSON")]
