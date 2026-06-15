@@ -56,7 +56,7 @@ describe("Execute WebAuthn", () => {
         },
       },
     };
-    const arg = {
+    const arg: Parameters<typeof program.methods.executeWebauthn>[1] = {
       accountId: new BN(accountId.toString()),
       nonce: new BN(nonce.toString()),
       action: {
@@ -135,7 +135,7 @@ describe("Execute WebAuthn", () => {
     }
   ) =>
     program.methods
-      .executeWebauthn(new BN(accountId.toString()), arg as any, {
+      .executeWebauthn(new BN(accountId.toString()), arg, {
         clientData: signed.clientData,
         authenticatorData: signed.authData,
       })
