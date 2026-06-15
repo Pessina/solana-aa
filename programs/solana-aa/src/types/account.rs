@@ -67,6 +67,13 @@ impl AbstractAccount {
             system_program_info,
         } = abstract_account_operation_accounts;
 
+        // Idempotent: a duplicate add is a no-op. Check before reallocating so a
+        // repeat call can't grow (and over-fund) the account without storing
+        // anything new.
+        if abstract_account.has_identity(&identity_with_permissions.identity) {
+            return Ok(());
+        }
+
         require!(
             abstract_account.identities.len() < Self::MAX_IDENTITIES,
             ErrorCode::TooManyIdentities
@@ -78,9 +85,7 @@ impl AbstractAccount {
 
         realloc_account(&account_info, new_size, &signer_info, &system_program_info)?;
 
-        if !abstract_account.has_identity(&identity_with_permissions.identity) {
-            abstract_account.identities.push(identity_with_permissions);
-        }
+        abstract_account.identities.push(identity_with_permissions);
 
         Ok(())
     }
